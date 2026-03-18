@@ -603,8 +603,8 @@ function showToast(message, duration = 2800) {
       setTimeout(() => { btn.textContent = orig; }, 1500);
     });
   }
-  ui.hostPeerId.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
-  ui.hostPeerIdCopy.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
+  if (ui.hostPeerId) ui.hostPeerId.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
+  if (ui.hostPeerIdCopy) ui.hostPeerIdCopy.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
 
   // ========== 게임 시작 ==========
   function startGame(resumeSession) {
