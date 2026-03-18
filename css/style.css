@@ -642,22 +642,6 @@ body {
   margin-top: auto;
 }
 
-.bet-amount-display {
-  text-align: center;
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin-bottom: 0.8rem;
-  color: var(--gold);
-}
-
-.bet-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin-bottom: 1rem;
-}
-
-.action-buttons,
 .action-buttons-top,
 .action-buttons-bottom {
   display: flex;
@@ -670,11 +654,12 @@ body {
 
 .btn-action {
   flex: 1;
-  padding: 0.8rem;
-  font-size: 1rem;
+  padding: 0.7rem 0.3rem;
+  font-size: 0.85rem;
   font-weight: 700;
   border-radius: 12px;
   min-width: auto;
+  white-space: nowrap;
 }
 
 .btn-call {
