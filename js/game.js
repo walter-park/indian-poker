@@ -211,7 +211,12 @@ class Game {
           carryPot: this._carryPot,
         });
         this._updateUI();
-        setTimeout(() => this._startNewRound(), 1000);
+        // 칩 0 + 이월팟 0이면 게임 오버 처리
+        if ((this.myChips <= 0 || this.opponentChips <= 0) && this._carryPot <= 0) {
+          this._checkGameOver();
+        } else {
+          setTimeout(() => this._startNewRound(), 1000);
+        }
       }, 1500);
     } else if (this.conn.isHost) {
       setTimeout(() => this._startNewRound(), 1500);
@@ -391,7 +396,10 @@ class Game {
   _startNewRound() {
     if (!this.conn.isHost) return;
     if (this._isGameOver) return;
-    if (this.myChips <= 0 || this.opponentChips <= 0) return;
+    if (this.myChips <= 0 || this.opponentChips <= 0) {
+      // 이월팟이 있으면 해당 금액으로 마지막 라운드 진행
+      if (this._carryPot <= 0) return;
+    }
     // 이미 딜링/베팅 중이면 중복 라운드 방지
     if (this.state === STATE.DEALING || this.state === STATE.BETTING) return;
 
