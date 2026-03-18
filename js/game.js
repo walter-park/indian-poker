@@ -240,6 +240,7 @@ class Game {
         this.opponentChips = data.opponentChips;
         this._raiseCount = 0;
         if (data.playedCards) this.playedCards = data.playedCards;
+        if (data.roundNumber) this.roundNumber = data.roundNumber;
         this._updateUI();
         break;
       }
@@ -275,6 +276,7 @@ class Game {
         this.myChips = data.yourChips;
         this.opponentChips = data.opponentChips;
         if (data.playedCards) this.playedCards = data.playedCards;
+        if (data.roundNumber) this.roundNumber = data.roundNumber;
         this._saveSession();
         if (this.onRoundResult) {
           this.onRoundResult({
@@ -424,6 +426,7 @@ class Game {
       yourChips: this.opponentChips,
       opponentChips: this.myChips,
       playedCards: this.playedCards,
+      roundNumber: this.roundNumber,
     });
 
     this.state = STATE.BETTING;
