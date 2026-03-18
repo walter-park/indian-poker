@@ -357,6 +357,10 @@ function showToast(message, duration = 2800) {
   function showScreen(name) {
     Object.values(screens).forEach((s) => s.classList.remove('active'));
     screens[name].classList.add('active');
+    // guestJoin 화면을 벗어나면 카메라 확실히 해제
+    if (name !== 'guestJoin') {
+      stopQrScanner();
+    }
   }
 
   function generateDefaultNickname() {
@@ -507,6 +511,24 @@ function showToast(message, duration = 2800) {
     qrScanner = null;
     try { await scanner.stop(); } catch (e) {}
     try { scanner.clear(); } catch (e) {}
+    // Html5Qrcode가 미처 해제하지 못한 카메라 트랙을 강제 종료
+    releaseAllCameras();
+  }
+
+  function releaseAllCameras() {
+    try {
+      // qr-reader 내부 video 요소에서 스트림 해제
+      const container = document.getElementById('qr-reader');
+      if (container) {
+        const videos = container.querySelectorAll('video');
+        videos.forEach((video) => {
+          if (video.srcObject) {
+            video.srcObject.getTracks().forEach((track) => track.stop());
+            video.srcObject = null;
+          }
+        });
+      }
+    } catch (e) {}
   }
 
   // ========== Guest 연결 ==========
