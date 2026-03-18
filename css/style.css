@@ -591,6 +591,7 @@ body {
 
 .opponent-area {
   flex: 1;
+  padding-top: 2.8rem;
 }
 
 .my-area {
@@ -1190,7 +1191,7 @@ body {
 /* Toast */
 .toast-container {
   position: fixed;
-  top: 1rem;
+  top: 3.5rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
