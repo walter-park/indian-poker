@@ -103,26 +103,56 @@ body {
 }
 
 /* Resume Section */
-.resume-section {
-  margin-top: 1.5rem;
-  padding: 1rem;
+.resume-option {
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
   background: var(--bg-secondary);
-  border: 2px solid var(--warning);
-  border-radius: 12px;
+  border: 1px solid rgba(243, 156, 18, 0.3);
+  border-radius: 10px;
   text-align: center;
 }
 
-.resume-title {
-  font-weight: 600;
-  color: var(--warning);
-  margin-bottom: 0.3rem;
+.resume-checkbox-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
   font-size: 0.95rem;
 }
 
+.resume-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--warning);
+  cursor: pointer;
+}
+
+.resume-checkbox-text {
+  color: var(--warning);
+  font-weight: 600;
+}
+
 .resume-detail {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
-  margin-bottom: 0.8rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0;
+}
+
+.btn-discard-inline {
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--text-secondary);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.btn-discard-inline:active {
+  opacity: 0.7;
 }
 
 .resume-buttons {
@@ -953,6 +983,16 @@ body {
 .overlay-content p {
   color: var(--text-secondary);
   margin-bottom: 1.5rem;
+}
+
+.disconnect-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.disconnect-buttons .btn {
+  width: 100%;
 }
 
 /* Animations */

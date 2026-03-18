@@ -163,10 +163,10 @@ function showToast(message, duration = 2800) {
     nicknameInput: $('nickname-input'),
     btnCreateRoom: $('btn-create-room'),
     btnJoinRoom: $('btn-join-room'),
-    // Resume
-    resumeSection: $('resume-section'),
+    // Resume option
+    resumeOption: $('resume-option'),
+    chkResumeGame: $('chk-resume-game'),
     resumeDetail: $('resume-detail'),
-    btnResume: $('btn-resume'),
     btnDiscardSession: $('btn-discard-session'),
     // Host waiting
     hostPeerId: $('host-peer-id'),
@@ -224,6 +224,7 @@ function showToast(message, duration = 2800) {
     btnNewGame: $('btn-new-game'),
     // Disconnect
     disconnectOverlay: $('disconnect-overlay'),
+    btnReconnectResume: $('btn-reconnect-resume'),
     btnBackLobby: $('btn-back-lobby'),
     // Settings
     btnToggleSound: $('btn-toggle-sound'),
@@ -371,12 +372,14 @@ function showToast(message, duration = 2800) {
     savedSession = Game.loadSession();
     if (savedSession) {
       ui.resumeDetail.textContent = `칩: 나 ${savedSession.myChips} / 상대 ${savedSession.opponentChips} · 라운드 ${savedSession.roundNumber}`;
-      ui.resumeSection.style.display = 'block';
+      ui.resumeOption.style.display = 'block';
+      if (ui.chkResumeGame) ui.chkResumeGame.checked = true;
       if (savedSession.myName) {
         ui.nicknameInput.value = savedSession.myName;
       }
     } else {
-      ui.resumeSection.style.display = 'none';
+      ui.resumeOption.style.display = 'none';
+      if (ui.chkResumeGame) ui.chkResumeGame.checked = false;
     }
   }
 
@@ -387,15 +390,13 @@ function showToast(message, duration = 2800) {
 
   checkSavedSession();
 
-  // 이어하기 — 항상 새 방을 만들고 상태만 복원
-  ui.btnResume.addEventListener('click', async () => {
+  // 이어서 방 만들기 공통 함수
+  async function createResumeRoom(btn, originalText) {
     if (!savedSession) return;
 
     try {
-      ui.btnResume.disabled = true;
-      ui.btnResume.textContent = '방 생성 중...';
+      if (btn) { btn.disabled = true; btn.textContent = '방 생성 중...'; }
 
-      // 항상 새 방 생성 (이전 방은 이미 폭파됨)
       const peerId = await connMgr.createHost();
       ui.hostPeerId.textContent = peerId;
 
@@ -407,7 +408,6 @@ function showToast(message, duration = 2800) {
       qrImg.innerHTML = qr.createImgTag(5, 10);
       ui.qrContainer.appendChild(qrImg.firstChild);
 
-      // 세션을 호스트 기준으로 변환 (원래 게스트였어도 이제 호스트)
       const resumeSession = { ...savedSession, isHost: true };
 
       connMgr.onConnected = () => {
@@ -417,25 +417,31 @@ function showToast(message, duration = 2800) {
       };
       connMgr.onDisconnected = handleDisconnect;
 
-      ui.hostStatus.textContent = '새 방이 생성되었습니다. 상대방에게 QR 코드를 보여주세요.';
+      ui.hostStatus.textContent = '이전 게임을 이어서 시작합니다. 상대방에게 QR 코드를 보여주세요.';
       ui.hostStatus.style.color = '#f39c12';
       showScreen('hostWaiting');
     } catch (err) {
       alert('방 생성 실패: ' + err.message);
     } finally {
-      ui.btnResume.disabled = false;
-      ui.btnResume.textContent = '이어하기';
+      if (btn) { btn.disabled = false; btn.textContent = originalText; }
     }
-  });
+  }
 
   ui.btnDiscardSession.addEventListener('click', () => {
     Game.clearSession();
     savedSession = null;
-    ui.resumeSection.style.display = 'none';
+    ui.resumeOption.style.display = 'none';
+    if (ui.chkResumeGame) ui.chkResumeGame.checked = false;
   });
 
   // ========== 로비 이벤트 ==========
   ui.btnCreateRoom.addEventListener('click', async () => {
+    // 이전 게임 이어서 체크 시 resume 플로우
+    if (ui.chkResumeGame && ui.chkResumeGame.checked && savedSession) {
+      await createResumeRoom(ui.btnCreateRoom, '방 만들기');
+      return;
+    }
+
     try {
       ui.btnCreateRoom.disabled = true;
       ui.btnCreateRoom.textContent = '생성 중...';
@@ -1138,6 +1144,22 @@ function showToast(message, duration = 2800) {
     game = null;
     if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'flex';
   }
+
+  // 연결 끊김 → 이어서 방 만들기
+  if (ui.btnReconnectResume) ui.btnReconnectResume.addEventListener('click', async () => {
+    if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'none';
+    connMgr.destroy();
+    game = null;
+    // 세션 다시 로드
+    savedSession = Game.loadSession();
+    if (savedSession) {
+      await createResumeRoom(ui.btnReconnectResume, '이어서 방 만들기');
+    } else {
+      showToast('저장된 게임이 없습니다');
+      showScreen('lobby');
+      checkSavedSession();
+    }
+  });
 
   if (ui.btnBackLobby) ui.btnBackLobby.addEventListener('click', () => {
     if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'none';

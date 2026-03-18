@@ -32,16 +32,14 @@
         <button id="btn-join-room" class="btn btn-secondary">참가하기</button>
       </div>
 
-      <!-- 이어하기 (재연결) -->
-      <div id="resume-section" class="resume-section" style="display: none;">
-        <div class="resume-info">
-          <p class="resume-title">이전 게임이 있습니다</p>
-          <p class="resume-detail" id="resume-detail"></p>
-        </div>
-        <div class="resume-buttons">
-          <button id="btn-resume" class="btn btn-resume">이어하기</button>
-          <button id="btn-discard-session" class="btn-discard">삭제</button>
-        </div>
+      <!-- 이전 게임 이어서 옵션 -->
+      <div id="resume-option" class="resume-option" style="display: none;">
+        <label class="resume-checkbox-label">
+          <input type="checkbox" id="chk-resume-game">
+          <span class="resume-checkbox-text">이전 게임 이어서 시작</span>
+        </label>
+        <p class="resume-detail" id="resume-detail"></p>
+        <button id="btn-discard-session" class="btn-discard-inline">삭제</button>
       </div>
 
       <div class="lobby-footer">
@@ -292,7 +290,10 @@
     <div class="overlay-content">
       <h3>연결 끊김</h3>
       <p>상대방과의 연결이 끊어졌습니다.</p>
-      <button id="btn-back-lobby" class="btn btn-primary">로비로 돌아가기</button>
+      <div class="disconnect-buttons">
+        <button id="btn-reconnect-resume" class="btn btn-resume">이어서 방 만들기</button>
+        <button id="btn-back-lobby" class="btn btn-secondary">로비로 돌아가기</button>
+      </div>
     </div>
   </div>
 
