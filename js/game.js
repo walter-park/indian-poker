@@ -59,6 +59,7 @@ class Game {
     this.opponentBetTotal = 0;    // 이번 라운드 상대 총 베팅
     this.isMyTurn = false;
     this.roundNumber = 0;
+    this._betActionsCount = 0; // 이번 라운드 베팅 액션 수 (첫 체크 판별용)
 
     // Host 전용: 양쪽 카드 보관
     this._hostCards = { host: null, guest: null };
@@ -162,6 +163,10 @@ class Game {
 
       case MSG.NEXT_ROUND:
         this._resetRound();
+        // Host가 Guest로부터 NEXT_ROUND를 받으면 새 라운드 시작
+        if (this.conn.isHost) {
+          setTimeout(() => this._startNewRound(), 500);
+        }
         break;
 
       case MSG.GAME_OVER:
@@ -234,6 +239,7 @@ class Game {
     this.currentBet = ante;
     this.myBetTotal = ante;
     this.opponentBetTotal = ante;
+    this._betActionsCount = 0;
 
     this._updateUI();
 
@@ -276,8 +282,25 @@ class Game {
         this.pot += diff;
         this.opponentBetTotal = this.myBetTotal;
       }
-      // 콜이면 라운드 종료 (첫 턴 체크/콜 제외)
-      this._endRound(null); // null = 카드 비교
+
+      // 첫 턴 체크(diff=0)인 경우: 상대에게 턴을 넘김
+      const betDiff = fromHost
+        ? (this.opponentBetTotal - this.myBetTotal)
+        : (this.myBetTotal - this.opponentBetTotal);
+      if (betDiff === 0 && this._betActionsCount === 0) {
+        this._betActionsCount++;
+        this._syncState(fromHost);
+        this.isMyTurn = !fromHost;
+        this.conn.send({
+          type: MSG.BET_TURN,
+          isYourTurn: fromHost,
+        });
+        this._updateUI();
+        return;
+      }
+
+      // 그 외 콜: 라운드 종료 (카드 비교)
+      this._endRound(null);
       return;
     }
 
@@ -299,6 +322,7 @@ class Game {
       }
 
       // 상대에게 턴 넘기기
+      this._betActionsCount++;
       this._syncState(fromHost);
 
       // 턴 전환
@@ -456,12 +480,10 @@ class Game {
    * 다음 라운드 요청
    */
   requestNextRound() {
+    this.conn.send({ type: MSG.NEXT_ROUND });
+    this._resetRound();
     if (this.conn.isHost) {
-      this.conn.send({ type: MSG.NEXT_ROUND });
-      this._resetRound();
       setTimeout(() => this._startNewRound(), 500);
-    } else {
-      this.conn.send({ type: MSG.NEXT_ROUND });
     }
   }
 
@@ -487,6 +509,7 @@ class Game {
     this.myBetTotal = 0;
     this.opponentBetTotal = 0;
     this.isMyTurn = false;
+    this._betActionsCount = 0;
     this._hostCards = { host: null, guest: null };
     this._updateUI();
   }

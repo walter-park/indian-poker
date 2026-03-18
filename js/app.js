@@ -119,10 +119,8 @@
   });
 
   // ========== QR 스캐너 ==========
-  function startQrScanner() {
-    if (qrScanner) {
-      qrScanner.clear();
-    }
+  async function startQrScanner() {
+    await stopQrScanner();
 
     qrScanner = new Html5Qrcode('qr-reader');
 
@@ -321,8 +319,14 @@
   });
 
   ui.btnBetPlus.addEventListener('click', () => {
-    betAmount++;
-    ui.betAmountDisplay.textContent = betAmount;
+    if (!game) return;
+    // 콜 비용을 제외한 레이즈 가능 최대치
+    const callCost = Math.max(0, game.opponentBetTotal - game.myBetTotal);
+    const maxRaise = game.myChips - callCost;
+    if (betAmount < maxRaise) {
+      betAmount++;
+      ui.betAmountDisplay.textContent = betAmount;
+    }
   });
 
   ui.btnCall.addEventListener('click', () => {
