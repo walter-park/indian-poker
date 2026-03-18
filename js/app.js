@@ -229,6 +229,7 @@ function showToast(message, duration = 2800) {
     // Settings
     btnToggleSound: $('btn-toggle-sound'),
     btnToggleVibration: $('btn-toggle-vibration'),
+    btnExitGame: $('btn-exit-game'),
     // Tutorial
     tutorialOverlay: $('tutorial-overlay'),
     btnCloseTutorial: $('btn-close-tutorial'),
@@ -678,6 +679,17 @@ function showToast(message, duration = 2800) {
     game.onGameOver = onGameOver;
     game.onDeckShuffled = onDeckShuffled;
     game.onBlindUp = (ante) => showToast(`🔺 블라인드 UP! 앤티 ${ante}칩`);
+    game.onOpponentExit = () => {
+      clearBetTimer();
+      game = null;
+      connMgr.destroy();
+      if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'none';
+      if (ui.gameOver) ui.gameOver.style.display = 'none';
+      if (ui.roundResult) ui.roundResult.style.display = 'none';
+      showToast('상대방이 게임을 나갔습니다');
+      showScreen('lobby');
+      checkSavedSession();
+    };
 
     showScreen('game');
     showRoomInfoBadge();
@@ -1216,6 +1228,19 @@ function showToast(message, duration = 2800) {
       GameSettings.vibrationEnabled = !GameSettings.vibrationEnabled;
       updateSettingsUI();
       showToast(GameSettings.vibrationEnabled ? '진동 ON' : '진동 OFF', 1500);
+    });
+  }
+
+  // ========== 나가기 버튼 ==========
+  if (ui.btnExitGame) {
+    ui.btnExitGame.addEventListener('click', () => {
+      if (!confirm('정말 게임을 나가시겠습니까?\n세션이 삭제되어 이어하기가 불가능합니다.')) return;
+      clearBetTimer();
+      if (game) game.exitGame();
+      game = null;
+      connMgr.destroy();
+      showScreen('lobby');
+      checkSavedSession();
     });
   }
 

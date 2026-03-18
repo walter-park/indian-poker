@@ -29,6 +29,7 @@ const MSG = {
   NEW_GAME: 'NEW_GAME',
   RECONNECT_STATE: 'RECONNECT_STATE',
   DECK_SHUFFLED: 'DECK_SHUFFLED',
+  EXIT_GAME: 'EXIT_GAME',
 };
 
 // 게임 상태
@@ -102,6 +103,7 @@ class Game {
     this.onRoundResult = null;
     this.onGameOver = null;
     this.onDeckShuffled = null;
+    this.onOpponentExit = null;
 
     // 메시지 핸들러 등록
     this.conn.onMessage = (data) => this._handleMessage(data);
@@ -359,6 +361,11 @@ class Game {
         this.playedCards = [];
         if (this.onDeckShuffled) this.onDeckShuffled(data.deckSize);
         this._updateUI();
+        break;
+
+      case MSG.EXIT_GAME:
+        Game.clearSession();
+        if (this.onOpponentExit) this.onOpponentExit();
         break;
     }
   }
@@ -785,6 +792,11 @@ class Game {
     } else {
       this._newGameRequested = false;
     }
+  }
+
+  exitGame() {
+    Game.clearSession();
+    this.conn.send({ type: MSG.EXIT_GAME });
   }
 
   _getAnte() {

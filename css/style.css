@@ -1375,6 +1375,14 @@ body {
   transform: scale(0.9);
 }
 
+.btn-exit {
+  border-color: rgba(231, 76, 60, 0.3);
+}
+
+.btn-exit:active {
+  background: rgba(231, 76, 60, 0.3);
+}
+
 /* Carry Pot Display */
 .carry-pot {
   font-size: 0.8rem;
