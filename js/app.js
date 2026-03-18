@@ -346,15 +346,19 @@ function showToast(message, duration = 2800) {
     screens[name].classList.add('active');
   }
 
+  function generateDefaultNickname() {
+    return '플레이어#' + Math.floor(Math.random() * 1000);
+  }
+
   function getNickname() {
-    return ui.nicknameInput.value.trim() || '플레이어';
+    return ui.nicknameInput.value.trim() || generateDefaultNickname();
   }
 
   // ========== 세션 복원 체크 ==========
   function checkSavedSession() {
     savedSession = Game.loadSession();
     if (savedSession) {
-      ui.resumeDetail.textContent = `${savedSession.isHost ? '방장' : '참가자'} · 칩: 나 ${savedSession.myChips} / 상대 ${savedSession.opponentChips} · 라운드 ${savedSession.roundNumber}`;
+      ui.resumeDetail.textContent = `칩: 나 ${savedSession.myChips} / 상대 ${savedSession.opponentChips} · 라운드 ${savedSession.roundNumber}`;
       ui.resumeSection.style.display = 'block';
       if (savedSession.myName) {
         ui.nicknameInput.value = savedSession.myName;
@@ -364,45 +368,48 @@ function showToast(message, duration = 2800) {
     }
   }
 
+  // 닉네임이 비어있으면 기본 랜덤 닉네임 설정
+  if (!ui.nicknameInput.value.trim()) {
+    ui.nicknameInput.value = generateDefaultNickname();
+  }
+
   checkSavedSession();
 
-  // 이어하기
+  // 이어하기 — 항상 새 방을 만들고 상태만 복원
   ui.btnResume.addEventListener('click', async () => {
     if (!savedSession) return;
 
     try {
       ui.btnResume.disabled = true;
-      ui.btnResume.textContent = '연결 중...';
+      ui.btnResume.textContent = '방 생성 중...';
 
-      if (savedSession.isHost) {
-        const peerId = await connMgr.createHost(savedSession.hostId);
-        ui.hostPeerId.textContent = peerId;
+      // 항상 새 방 생성 (이전 방은 이미 폭파됨)
+      const peerId = await connMgr.createHost();
+      ui.hostPeerId.textContent = peerId;
 
-        ui.qrContainer.innerHTML = '';
-        const qr = qrcode(0, 'M');
-        qr.addData(peerId);
-        qr.make();
-        const qrImg = document.createElement('div');
-        qrImg.innerHTML = qr.createImgTag(5, 10);
-        ui.qrContainer.appendChild(qrImg.firstChild);
+      ui.qrContainer.innerHTML = '';
+      const qr = qrcode(0, 'M');
+      qr.addData(peerId);
+      qr.make();
+      const qrImg = document.createElement('div');
+      qrImg.innerHTML = qr.createImgTag(5, 10);
+      ui.qrContainer.appendChild(qrImg.firstChild);
 
-        connMgr.onConnected = () => {
-          ui.hostStatus.textContent = '✅ 상대방 재연결됨!';
-          ui.hostStatus.style.color = '#2ecc71';
-          startGame(savedSession);
-        };
-        connMgr.onDisconnected = handleDisconnect;
+      // 세션을 호스트 기준으로 변환 (원래 게스트였어도 이제 호스트)
+      const resumeSession = { ...savedSession, isHost: true };
 
-        ui.hostStatus.textContent = '이전 방 ID로 대기 중... 상대방이 같은 ID로 연결하세요';
-        ui.hostStatus.style.color = '#f39c12';
-        showScreen('hostWaiting');
-      } else {
-        connMgr.onConnected = () => { startGame(savedSession); };
-        connMgr.onDisconnected = handleDisconnect;
-        await connMgr.joinHost(savedSession.hostId);
-      }
+      connMgr.onConnected = () => {
+        ui.hostStatus.textContent = '✅ 상대방 연결됨! 게임 복원 중...';
+        ui.hostStatus.style.color = '#2ecc71';
+        startGame(resumeSession);
+      };
+      connMgr.onDisconnected = handleDisconnect;
+
+      ui.hostStatus.textContent = '새 방이 생성되었습니다. 상대방에게 QR 코드를 보여주세요.';
+      ui.hostStatus.style.color = '#f39c12';
+      showScreen('hostWaiting');
     } catch (err) {
-      alert('재연결 실패: ' + err.message);
+      alert('방 생성 실패: ' + err.message);
     } finally {
       ui.btnResume.disabled = false;
       ui.btnResume.textContent = '이어하기';

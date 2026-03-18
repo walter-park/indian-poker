@@ -178,6 +178,11 @@ class Game {
     switch (data.type) {
       case MSG.PLAYER_INFO:
         this.opponentName = data.name;
+        // 상대방과 이름이 같으면 내 이름에 랜덤 접미사 재생성
+        if (this.myName === this.opponentName) {
+          this.myName = '플레이어#' + Math.floor(Math.random() * 1000);
+          this.conn.send({ type: MSG.PLAYER_INFO, name: this.myName });
+        }
         if (!this.conn.isHost) {
           this._hostPeerId = this.conn.conn ? this.conn.conn.peer : null;
         }

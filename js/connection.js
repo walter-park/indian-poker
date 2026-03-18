@@ -13,7 +13,8 @@ class ConnectionManager {
     this.onDisconnected = null;   // 연결 끊김 콜백
     this.onError = null;          // 에러 콜백
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 3;
+    this.maxReconnectAttempts = 5;
+    this._reconnectTimer = null;
   }
 
   /**
@@ -50,6 +51,11 @@ class ConnectionManager {
       });
 
       this.peer.on('error', (err) => {
+        // 이미 연결된 상태에서의 시그널링 서버 에러는 무시
+        if (this.conn && this.conn.open && (err.type === 'network' || err.type === 'server-error')) {
+          console.warn('[Host] Signaling server error (data channel still open, ignoring):', err.type);
+          return;
+        }
         console.error('[Host] Peer error:', err);
         if (err.type === 'unavailable-id' && (this._createRetries || 0) < 3) {
           this._createRetries = (this._createRetries || 0) + 1;
@@ -61,8 +67,14 @@ class ConnectionManager {
       });
 
       this.peer.on('disconnected', () => {
-        console.log('[Host] Peer disconnected from signaling server');
-        this._tryReconnectPeer();
+        // 데이터 채널이 살아있으면 시그널링 서버 끊김은 무시 (백그라운드 재연결만)
+        if (this.conn && this.conn.open) {
+          console.log('[Host] Signaling server disconnected, but data channel is still open. Reconnecting silently...');
+          this._tryReconnectPeer();
+        } else {
+          console.log('[Host] Peer disconnected from signaling server');
+          this._tryReconnectPeer();
+        }
       });
     });
   }
@@ -114,8 +126,23 @@ class ConnectionManager {
       });
 
       this.peer.on('error', (err) => {
+        // 이미 연결된 상태에서의 시그널링 서버 에러는 무시
+        if (this.conn && this.conn.open && err.type === 'network') {
+          console.warn('[Guest] Signaling server error (data channel still open, ignoring):', err.type);
+          return;
+        }
         console.error('[Guest] Peer error:', err);
         reject(err);
+      });
+
+      this.peer.on('disconnected', () => {
+        if (this.conn && this.conn.open) {
+          console.log('[Guest] Signaling server disconnected, but data channel is still open. Reconnecting silently...');
+          this._tryReconnectPeer();
+        } else {
+          console.log('[Guest] Peer disconnected from signaling server');
+          this._tryReconnectPeer();
+        }
       });
     });
   }
@@ -155,17 +182,45 @@ class ConnectionManager {
   }
 
   /**
-   * 시그널링 서버 재연결 시도
+   * 시그널링 서버 재연결 시도 (exponential backoff)
    */
   _tryReconnectPeer() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+    }
+
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`[P2P] Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
-      setTimeout(() => {
+      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
+      console.log(`[P2P] Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} (in ${delay}ms)`);
+      this._reconnectTimer = setTimeout(() => {
         if (this.peer && !this.peer.destroyed) {
-          this.peer.reconnect();
+          try {
+            this.peer.reconnect();
+          } catch (e) {
+            console.warn('[P2P] Reconnect failed:', e.message);
+            // 데이터 채널이 살아있으면 문제 없음
+            if (this.conn && this.conn.open) {
+              console.log('[P2P] Data channel still open, continuing without signaling server');
+            }
+          }
         }
-      }, 2000 * this.reconnectAttempts);
+      }, delay);
+    } else {
+      // 최대 재시도 초과, 데이터 채널 상태 확인
+      if (this.conn && this.conn.open) {
+        console.log('[P2P] Max reconnect attempts reached, but data channel is still open. Continuing...');
+        // 30초 후 재시도 카운터 리셋하여 다시 시도할 수 있게
+        this._reconnectTimer = setTimeout(() => {
+          this.reconnectAttempts = 0;
+          this._tryReconnectPeer();
+        }, 30000);
+      } else {
+        console.warn('[P2P] Max reconnect attempts reached and data channel is closed');
+        if (this.onDisconnected) {
+          this.onDisconnected();
+        }
+      }
     }
   }
 
@@ -185,6 +240,10 @@ class ConnectionManager {
    * 연결 정리
    */
   destroy() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
     if (this.conn) {
       this.conn.close();
       this.conn = null;
