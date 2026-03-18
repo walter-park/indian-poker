@@ -112,6 +112,25 @@ class Game {
   static STORAGE_KEY = 'indian-poker-session';
 
   _saveSession() {
+    let carryPot = this._carryPot;
+    let playedCards = this.playedCards;
+    let deck = this._deck;
+
+    // 라운드 중 끊김: 팟 금액을 이월팟으로 보존하고, 배당된 카드를 히스토리에 추가
+    const isMidRound = this.state === STATE.DEALING || this.state === STATE.BETTING;
+    if (isMidRound) {
+      // 팟에 걸린 칩을 다음 라운드로 이월 (증발 방지)
+      if (this.pot > 0) {
+        carryPot = this.pot;
+      }
+      // Host: 이번 라운드에 배당된 카드를 히스토리에 추가
+      if (this.conn.isHost) {
+        playedCards = [...this.playedCards];
+        if (this._hostCards.host !== null) playedCards.push(this._hostCards.host);
+        if (this._hostCards.guest !== null) playedCards.push(this._hostCards.guest);
+      }
+    }
+
     const session = {
       hostId: this.conn.isHost ? this.conn.peerId : this._hostPeerId,
       myChips: this.myChips,
@@ -122,9 +141,9 @@ class Game {
       isHost: this.conn.isHost,
       timestamp: Date.now(),
       // 덱/카드로그/이월팟 상태 보존
-      deck: this._deck,
-      playedCards: this.playedCards,
-      carryPot: this._carryPot,
+      deck: deck,
+      playedCards: playedCards,
+      carryPot: carryPot,
       lastRoundLoser: this._lastRoundLoser,
     };
     try {
@@ -189,6 +208,7 @@ class Game {
           roundNumber: this.roundNumber,
           playedCards: this.playedCards,
           remainingCards: this.remainingCards,
+          carryPot: this._carryPot,
         });
         this._updateUI();
         setTimeout(() => this._startNewRound(), 1000);
@@ -325,6 +345,7 @@ class Game {
         this.roundNumber = data.roundNumber;
         if (data.playedCards) this.playedCards = data.playedCards;
         if (data.remainingCards !== undefined) this.remainingCards = data.remainingCards;
+        if (data.carryPot) this._carryPot = data.carryPot;
         this._updateUI();
         break;
 
