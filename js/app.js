@@ -141,11 +141,19 @@
     });
   }
 
-  function stopQrScanner() {
-    if (qrScanner) {
-      qrScanner.stop().catch(() => {});
-      qrScanner.clear();
-      qrScanner = null;
+  async function stopQrScanner() {
+    if (!qrScanner) return;
+    const scanner = qrScanner;
+    qrScanner = null;
+    try {
+      await scanner.stop();
+    } catch (e) {
+      // 스캐너가 시작되지 않은 상태에서 stop 호출 시 무시
+    }
+    try {
+      scanner.clear();
+    } catch (e) {
+      // DOM 정리 실패 시 무시
     }
   }
 
