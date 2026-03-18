@@ -71,6 +71,7 @@ class Game {
     this.opponentBetTotal = 0;
     this.isMyTurn = false;
     this.roundNumber = 0;
+    this.ante = 1;
     this._betActionsCount = 0;
     this._raiseCount = 0;
     this._isGameOver = false;
@@ -222,7 +223,7 @@ class Game {
         }
         break;
 
-      case MSG.CARDS_DEALT:
+      case MSG.CARDS_DEALT: {
         this.state = STATE.BETTING;
         this.pot = data.pot;
         // 블라인드 레벨 업 알림 (게스트)
@@ -241,6 +242,7 @@ class Game {
         if (data.playedCards) this.playedCards = data.playedCards;
         this._updateUI();
         break;
+      }
 
       case MSG.BET_TURN:
         this.isMyTurn = data.isYourTurn;
@@ -780,9 +782,11 @@ class Game {
     this.myChips = STARTING_CHIPS;
     this.opponentChips = STARTING_CHIPS;
     this.roundNumber = 0;
+    this.ante = 1;
     this._isGameOver = false;
     this._lastRoundLoser = null;
     this._carryPot = 0;
+    this._lastBlindLevel = 1;
     this._roundHistory = [];
     this._deck = [];
     this.remainingCards = 0;
@@ -812,6 +816,7 @@ class Game {
         playedCards: this.playedCards,
         carryPot: this._carryPot,
         roundHistory: this._roundHistory,
+        ante: this.ante || 1,
       });
     }
   }

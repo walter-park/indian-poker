@@ -723,6 +723,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes raisePanelOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(8px); }
+}
+
 /* Presets */
 .raise-presets {
   display: flex;

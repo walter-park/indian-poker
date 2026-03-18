@@ -277,6 +277,7 @@ function showToast(message, duration = 2800) {
         clearBetTimer();
         // race condition 방지: 게임이 존재하고 내 턴이며 베팅 상태일 때만 자동 콜
         if (game && game.isMyTurn && game.state === STATE.BETTING) {
+          closeRaisePanel();
           SoundManager.timeout();
           showToast('⏰ 시간 초과 - 자동 콜');
           game.doBet('call');
@@ -966,6 +967,16 @@ function showToast(message, duration = 2800) {
   }
 
   // ========== 레이즈 패널 컨트롤 ==========
+  function closeRaisePanel() {
+    if (!ui.raisePanel) return;
+    if (ui.raisePanel.style.display === 'none') return;
+    ui.raisePanel.style.animation = 'raisePanelOut 0.15s ease-in forwards';
+    setTimeout(() => {
+      ui.raisePanel.style.display = 'none';
+      ui.raisePanel.style.animation = '';
+    }, 150);
+    if (ui.btnRaiseToggle) ui.btnRaiseToggle.classList.remove('raise-active');
+  }
   function getRaiseRange() {
     if (!game) return { min: 1, max: 1 };
     const callDiff = Math.max(0, game.opponentBetTotal - game.myBetTotal);
@@ -1009,14 +1020,14 @@ function showToast(message, duration = 2800) {
     if (!ui.raisePanel) return;
     const isOpen = ui.raisePanel.style.display !== 'none';
     if (isOpen) {
-      ui.raisePanel.style.display = 'none';
-      ui.btnRaiseToggle.classList.remove('raise-active');
+      closeRaisePanel();
     } else {
       ui.raisePanel.style.display = '';
       ui.btnRaiseToggle.classList.add('raise-active');
       updateRaiseSliderRange();
-      // 기본값 1칩으로 초기화
-      ui.raiseSlider.value = ui.raiseSlider.min;
+      // 기본값: 앤티 금액 (최소 의미 있는 레이즈)
+      const defaultRaise = game ? Math.min(game.ante || 1, parseInt(ui.raiseSlider.max, 10)) : 1;
+      ui.raiseSlider.value = Math.max(parseInt(ui.raiseSlider.min, 10), defaultRaise);
       updateRaiseDisplay();
     }
   });
@@ -1071,21 +1082,19 @@ function showToast(message, duration = 2800) {
     const amount = parseInt(ui.raiseSlider.value, 10);
     SoundManager.bet();
     game.doBet('raise', amount);
-    // 패널 닫기
-    if (ui.raisePanel) ui.raisePanel.style.display = 'none';
-    if (ui.btnRaiseToggle) ui.btnRaiseToggle.classList.remove('raise-active');
+    closeRaisePanel();
   });
 
   if (ui.btnCheck) ui.btnCheck.addEventListener('click', () => {
-    if (game) { SoundManager.bet(); game.doBet('call'); }
+    if (game) { closeRaisePanel(); SoundManager.bet(); game.doBet('call'); }
   });
 
   if (ui.btnCall) ui.btnCall.addEventListener('click', () => {
-    if (game) { SoundManager.bet(); game.doBet('call'); }
+    if (game) { closeRaisePanel(); SoundManager.bet(); game.doBet('call'); }
   });
 
   if (ui.btnFold) ui.btnFold.addEventListener('click', () => {
-    if (game) { SoundManager.fold(); game.doBet('fold'); }
+    if (game) { closeRaisePanel(); SoundManager.fold(); game.doBet('fold'); }
   });
 
   // ========== 히스토리 토글 ==========
