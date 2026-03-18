@@ -1,6 +1,74 @@
 /**
  * 인디언 포커 - 메인 앱 (UI 바인딩 & 화면 전환)
  */
+
+// ========== 사운드 매니저 (Web Audio API) ==========
+const SoundManager = {
+  _ctx: null,
+  _getCtx() {
+    if (!this._ctx) {
+      this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this._ctx.state === 'suspended') this._ctx.resume();
+    return this._ctx;
+  },
+  _play(freq, duration, type = 'sine', volume = 0.12) {
+    try {
+      const ctx = this._getCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.value = volume;
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {}
+  },
+  cardDeal() { this._play(800, 0.1, 'square'); },
+  bet() { this._play(600, 0.08, 'square'); },
+  win() {
+    this._play(523, 0.15);
+    setTimeout(() => this._play(659, 0.15), 150);
+    setTimeout(() => this._play(784, 0.3), 300);
+  },
+  lose() {
+    this._play(400, 0.15);
+    setTimeout(() => this._play(350, 0.15), 150);
+    setTimeout(() => this._play(300, 0.3), 300);
+  },
+  draw() { this._play(500, 0.2); },
+  tick() { this._play(1000, 0.05, 'square'); },
+  fold() { this._play(300, 0.2); },
+  shuffle() {
+    this._play(400, 0.08, 'square');
+    setTimeout(() => this._play(500, 0.08, 'square'), 80);
+    setTimeout(() => this._play(600, 0.1, 'square'), 160);
+  },
+  gameOver() {
+    this._play(523, 0.2);
+    setTimeout(() => this._play(392, 0.2), 200);
+    setTimeout(() => this._play(330, 0.4), 400);
+  },
+};
+
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+}
+
+// ========== 토스트 알림 ==========
+function showToast(message, duration = 2800) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, duration);
+}
+
 (function () {
   const connMgr = new ConnectionManager();
   let game = null;
@@ -17,7 +85,7 @@
     game: $('screen-game'),
   };
 
-  let savedSession = null; // 재연결용 세션 정보
+  let savedSession = null;
 
   const ui = {
     nicknameInput: $('nickname-input'),
@@ -54,6 +122,12 @@
     btnCall: $('btn-call'),
     btnRaise: $('btn-raise'),
     btnFold: $('btn-fold'),
+    // Timer
+    betTimer: $('bet-timer'),
+    betTimerBar: $('bet-timer-bar'),
+    betTimerText: $('bet-timer-text'),
+    // Card Log
+    cardLogItems: $('card-log-items'),
     // Result
     roundResult: $('round-result'),
     resultTitle: $('result-title'),
@@ -81,13 +155,95 @@
     btnCloseRoomInfo: $('btn-close-room-info'),
   };
 
+  // ========== 베팅 타이머 ==========
+  let betTimerInterval = null;
+  let betTimerSeconds = 0;
+  let wasMyTurn = false;
+
+  function startBetTimer() {
+    clearBetTimer();
+    betTimerSeconds = BET_TIMER_SECONDS;
+    if (ui.betTimer) ui.betTimer.style.display = 'block';
+    updateTimerDisplay();
+
+    betTimerInterval = setInterval(() => {
+      betTimerSeconds--;
+      updateTimerDisplay();
+
+      if (betTimerSeconds <= 5 && betTimerSeconds > 0) {
+        SoundManager.tick();
+        vibrate(50);
+      }
+
+      if (betTimerSeconds <= 0) {
+        clearBetTimer();
+        if (game) {
+          SoundManager.fold();
+          game.doBet('fold');
+        }
+      }
+    }, 1000);
+  }
+
+  function updateTimerDisplay() {
+    if (!ui.betTimerBar) return;
+    const pct = (betTimerSeconds / BET_TIMER_SECONDS) * 100;
+    ui.betTimerBar.style.width = pct + '%';
+    if (ui.betTimerText) ui.betTimerText.textContent = betTimerSeconds;
+
+    ui.betTimerBar.classList.remove('warning', 'danger');
+    if (betTimerSeconds <= 5) ui.betTimerBar.classList.add('danger');
+    else if (betTimerSeconds <= 10) ui.betTimerBar.classList.add('warning');
+  }
+
+  function clearBetTimer() {
+    if (betTimerInterval) {
+      clearInterval(betTimerInterval);
+      betTimerInterval = null;
+    }
+    if (ui.betTimer) ui.betTimer.style.display = 'none';
+  }
+
+  // ========== 카드 로그 업데이트 ==========
+  function updateCardLog(playedCards) {
+    if (!ui.cardLogItems) return;
+
+    const usedCount = {};
+    for (let i = 1; i <= 10; i++) usedCount[i] = 0;
+    if (playedCards) {
+      playedCards.forEach((card) => {
+        if (usedCount[card] !== undefined) usedCount[card]++;
+      });
+    }
+
+    ui.cardLogItems.innerHTML = '';
+    for (let i = 1; i <= 10; i++) {
+      const item = document.createElement('div');
+      item.className = 'card-log-item';
+      if (usedCount[i] >= 2) item.classList.add('used-all');
+      else if (usedCount[i] === 1) item.classList.add('used-one');
+
+      const num = document.createElement('span');
+      num.className = 'card-log-num';
+      num.textContent = i;
+      item.appendChild(num);
+
+      const remain = 2 - usedCount[i];
+      const badge = document.createElement('span');
+      badge.className = 'card-log-remain';
+      badge.textContent = remain;
+      item.appendChild(badge);
+
+      ui.cardLogItems.appendChild(item);
+    }
+  }
+
   // ========== 화면 전환 ==========
   function showScreen(name) {
     Object.values(screens).forEach((s) => s.classList.remove('active'));
     screens[name].classList.add('active');
   }
 
-  // ========== 닉네임 ==========
   function getNickname() {
     return ui.nicknameInput.value.trim() || '플레이어';
   }
@@ -106,10 +262,9 @@
     }
   }
 
-  // 페이지 로드 시 세션 체크
   checkSavedSession();
 
-  // 이어하기 버튼
+  // 이어하기
   ui.btnResume.addEventListener('click', async () => {
     if (!savedSession) return;
 
@@ -118,11 +273,9 @@
       ui.btnResume.textContent = '연결 중...';
 
       if (savedSession.isHost) {
-        // Host: 같은 ID로 방 재생성
         const peerId = await connMgr.createHost(savedSession.hostId);
         ui.hostPeerId.textContent = peerId;
 
-        // QR 코드 생성
         ui.qrContainer.innerHTML = '';
         const qr = qrcode(0, 'M');
         qr.addData(peerId);
@@ -136,19 +289,14 @@
           ui.hostStatus.style.color = '#2ecc71';
           startGame(savedSession);
         };
-
         connMgr.onDisconnected = handleDisconnect;
 
         ui.hostStatus.textContent = '이전 방 ID로 대기 중... 상대방이 같은 ID로 연결하세요';
         ui.hostStatus.style.color = '#f39c12';
         showScreen('hostWaiting');
       } else {
-        // Guest: 저장된 Host ID로 바로 연결 시도
-        connMgr.onConnected = () => {
-          startGame(savedSession);
-        };
+        connMgr.onConnected = () => { startGame(savedSession); };
         connMgr.onDisconnected = handleDisconnect;
-
         await connMgr.joinHost(savedSession.hostId);
       }
     } catch (err) {
@@ -159,7 +307,6 @@
     }
   });
 
-  // 세션 삭제 버튼
   ui.btnDiscardSession.addEventListener('click', () => {
     Game.clearSession();
     savedSession = null;
@@ -173,10 +320,8 @@
       ui.btnCreateRoom.textContent = '생성 중...';
 
       const peerId = await connMgr.createHost();
-
       ui.hostPeerId.textContent = peerId;
 
-      // QR 코드 생성
       ui.qrContainer.innerHTML = '';
       const qr = qrcode(0, 'M');
       qr.addData(peerId);
@@ -185,13 +330,11 @@
       qrImg.innerHTML = qr.createImgTag(5, 10);
       ui.qrContainer.appendChild(qrImg.firstChild);
 
-      // 연결 콜백 설정
       connMgr.onConnected = () => {
         ui.hostStatus.textContent = '✅ 상대방 연결됨!';
         ui.hostStatus.style.color = '#2ecc71';
         startGame();
       };
-
       connMgr.onDisconnected = handleDisconnect;
 
       showScreen('hostWaiting');
@@ -204,7 +347,6 @@
   });
 
   ui.btnJoinRoom.addEventListener('click', () => {
-    // 이전 방 ID 복원
     const lastRoomId = localStorage.getItem('lastRoomId');
     if (lastRoomId) {
       ui.manualPeerId.value = lastRoomId;
@@ -220,38 +362,21 @@
   // ========== QR 스캐너 ==========
   async function startQrScanner() {
     await stopQrScanner();
-
     qrScanner = new Html5Qrcode('qr-reader');
-
     qrScanner.start(
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 200, height: 200 } },
-      (decodedText) => {
-        // QR 스캔 성공
-        stopQrScanner();
-        connectToHost(decodedText);
-      },
-      () => {} // 스캔 실패 (무시)
-    ).catch((err) => {
-      console.warn('카메라 시작 실패:', err);
-      // 카메라 없으면 수동 입력만 사용
-    });
+      (decodedText) => { stopQrScanner(); connectToHost(decodedText); },
+      () => {}
+    ).catch((err) => { console.warn('카메라 시작 실패:', err); });
   }
 
   async function stopQrScanner() {
     if (!qrScanner) return;
     const scanner = qrScanner;
     qrScanner = null;
-    try {
-      await scanner.stop();
-    } catch (e) {
-      // 스캐너가 시작되지 않은 상태에서 stop 호출 시 무시
-    }
-    try {
-      scanner.clear();
-    } catch (e) {
-      // DOM 정리 실패 시 무시
-    }
+    try { await scanner.stop(); } catch (e) {}
+    try { scanner.clear(); } catch (e) {}
   }
 
   // ========== Guest 연결 ==========
@@ -262,13 +387,11 @@
       ui.guestStatus.style.color = '#f39c12';
 
       connMgr.onConnected = () => {
-        // 연결 성공 시 방 ID 저장
         localStorage.setItem('lastRoomId', trimmedId);
         ui.guestStatus.textContent = '✅ 연결 성공!';
         ui.guestStatus.style.color = '#2ecc71';
         startGame();
       };
-
       connMgr.onDisconnected = handleDisconnect;
 
       await connMgr.joinHost(trimmedId);
@@ -285,7 +408,6 @@
     connectToHost(hostId);
   });
 
-  // X 버튼: 방 ID 초기화
   $('btn-clear-peer-id').addEventListener('click', () => {
     ui.manualPeerId.value = '';
     $('btn-clear-peer-id').style.display = 'none';
@@ -293,7 +415,6 @@
     ui.manualPeerId.focus();
   });
 
-  // input 변경 시 X 버튼 표시/숨김
   ui.manualPeerId.addEventListener('input', () => {
     $('btn-clear-peer-id').style.display = ui.manualPeerId.value ? 'flex' : 'none';
   });
@@ -314,7 +435,6 @@
 
   // ========== 방 정보 배지 ==========
   function showRoomInfoBadge() {
-    // Host의 Peer ID (방 ID) 가져오기
     const roomId = connMgr.isHost
       ? connMgr.peerId
       : (connMgr.conn ? connMgr.conn.peer : null);
@@ -324,7 +444,6 @@
       return;
     }
 
-    // 미니 QR 생성
     ui.roomInfoQr.innerHTML = '';
     const miniQr = qrcode(0, 'M');
     miniQr.addData(roomId);
@@ -338,11 +457,8 @@
       imgEl.style.borderRadius = '4px';
     }
     ui.roomInfoQr.appendChild(imgEl || miniImg.firstChild);
-
-    // 방 ID 표시
     ui.roomInfoId.textContent = roomId;
 
-    // 확대 오버레이용 QR
     ui.roomInfoExpandedQr.innerHTML = '';
     const bigQr = qrcode(0, 'M');
     bigQr.addData(roomId);
@@ -350,35 +466,25 @@
     const bigImg = document.createElement('div');
     bigImg.innerHTML = bigQr.createImgTag(5, 10);
     ui.roomInfoExpandedQr.appendChild(bigImg.firstChild);
-
     ui.roomInfoExpandedId.textContent = roomId;
 
     ui.roomInfoBadge.style.display = 'flex';
   }
 
-  // 배지 클릭 → 확대 오버레이
-  ui.roomInfoBadge.addEventListener('click', () => {
-    ui.roomInfoOverlay.style.display = 'flex';
-  });
-
-  ui.btnCloseRoomInfo.addEventListener('click', () => {
-    ui.roomInfoOverlay.style.display = 'none';
-  });
-
-  // 오버레이 배경 클릭으로도 닫기
+  ui.roomInfoBadge.addEventListener('click', () => { ui.roomInfoOverlay.style.display = 'flex'; });
+  ui.btnCloseRoomInfo.addEventListener('click', () => { ui.roomInfoOverlay.style.display = 'none'; });
   ui.roomInfoOverlay.addEventListener('click', (e) => {
-    if (e.target === ui.roomInfoOverlay) {
-      ui.roomInfoOverlay.style.display = 'none';
-    }
+    if (e.target === ui.roomInfoOverlay) ui.roomInfoOverlay.style.display = 'none';
   });
 
   // ========== 게임 시작 ==========
   function startGame(resumeSession) {
     stopQrScanner();
+    clearBetTimer();
+    wasMyTurn = false;
 
     game = new Game(connMgr);
 
-    // UI 콜백 설정
     game.onStateChange = updateGameUI;
     game.onCardDealt = onCardDealt;
     game.onRoundResult = onRoundResult;
@@ -387,6 +493,7 @@
 
     showScreen('game');
     showRoomInfoBadge();
+    updateCardLog([]);
     game.start(getNickname(), resumeSession || null);
   }
 
@@ -399,7 +506,8 @@
     ui.potAmount.textContent = state.pot;
     $('remaining-cards').textContent = state.remainingCards !== undefined ? state.remainingCards : '-';
 
-    // 상대가 다음 라운드를 시작했으면 결과 화면 자동 닫기
+    updateCardLog(state.playedCards);
+
     if (state.state === STATE.BETTING || state.state === STATE.DEALING || state.state === STATE.WAITING) {
       ui.roundResult.style.display = 'none';
     }
@@ -421,9 +529,19 @@
       ui.gameStatus.style.color = '#a0a0b0';
     }
 
-    // 베팅 컨트롤 표시/숨김
+    // 베팅 컨트롤
     const showBetting = state.state === STATE.BETTING && state.isMyTurn;
     ui.bettingControls.style.display = showBetting ? 'block' : 'none';
+
+    // 타이머: 내 턴이 새로 시작되면 가동
+    if (showBetting && !wasMyTurn) {
+      startBetTimer();
+      vibrate(100);
+    }
+    if (!showBetting) {
+      clearBetTimer();
+    }
+    wasMyTurn = showBetting;
 
     if (showBetting) {
       const maxRaise = state.myChips - (Math.max(0, state.opponentBetTotal - state.myBetTotal));
@@ -431,78 +549,97 @@
       betAmount = Math.max(1, betAmount);
       ui.betAmountDisplay.textContent = betAmount;
 
-      // 콜 금액 표시
+      // 콜/올인 표시
       const callDiff = state.opponentBetTotal - state.myBetTotal;
       if (callDiff > 0) {
-        ui.btnCall.textContent = `콜 (${callDiff})`;
-        ui.btnCall.disabled = state.myChips < callDiff;
+        if (callDiff > state.myChips) {
+          ui.btnCall.textContent = `올인 (${state.myChips})`;
+        } else {
+          ui.btnCall.textContent = `콜 (${callDiff})`;
+        }
+        ui.btnCall.disabled = false;
       } else {
         ui.btnCall.textContent = '체크';
         ui.btnCall.disabled = false;
       }
 
-      // 레이즈 가능 여부
-      ui.btnRaise.disabled = maxRaise < 1;
+      // 레이즈: 횟수 제한 + 칩 체크
+      const raiseDisabled = maxRaise < 1 || state.raiseCount >= state.maxRaises;
+      ui.btnRaise.disabled = raiseDisabled;
+      if (state.raiseCount >= state.maxRaises) {
+        ui.btnRaise.textContent = `레이즈 (${state.maxRaises}/${state.maxRaises})`;
+      } else {
+        ui.btnRaise.textContent = `레이즈 (${state.raiseCount}/${state.maxRaises})`;
+      }
+    } else {
+      ui.btnRaise.textContent = '레이즈';
     }
   }
 
   function onCardDealt(cardValue) {
-    // 상대방 카드가 내 화면에 보임
     ui.opponentCardValue.textContent = cardValue;
     ui.opponentCard.classList.add('revealed', 'card-deal-animation');
-
-    setTimeout(() => {
-      ui.opponentCard.classList.remove('card-deal-animation');
-    }, 500);
+    SoundManager.cardDeal();
+    vibrate(80);
+    setTimeout(() => { ui.opponentCard.classList.remove('card-deal-animation'); }, 500);
   }
 
   function onRoundResult(result) {
     ui.bettingControls.style.display = 'none';
+    clearBetTimer();
 
     ui.resultMyName.textContent = game.myName || '나';
     ui.resultOpponentName.textContent = game.opponentName || '상대방';
     ui.resultMyCard.textContent = result.myCard;
     ui.resultOpponentCard.textContent = result.opponentCard;
 
-    const penaltyText = result.penalty > 0 ? `\n⚠️ 10 카드 폴드 패널티: ${result.penalty}칩 추가!` : '';
-
     if (result.winner === 'you') {
       ui.resultTitle.textContent = '🎉 승리!';
-      ui.resultMessage.textContent = `+${result.netGain} 칩 획득${penaltyText}`;
+      let msg = `+${result.potWon} 칩 획득`;
+      if (result.foldPenalty > 0) msg += ` (10 폴드 보너스: +${result.foldPenalty})`;
+      ui.resultMessage.textContent = msg;
       ui.resultMessage.style.color = '#2ecc71';
+      SoundManager.win();
+      vibrate([100, 50, 100]);
     } else if (result.winner === 'opponent') {
       ui.resultTitle.textContent = '😢 패배';
-      ui.resultMessage.textContent = `-${Math.abs(result.netGain)} 칩 손실${penaltyText}`;
+      let msg = `-${result.potWon} 칩`;
+      if (result.foldPenalty > 0) msg += ` (10 폴드 패널티: -${result.foldPenalty})`;
+      ui.resultMessage.textContent = msg;
       ui.resultMessage.style.color = '#e74c3c';
+      SoundManager.lose();
+      vibrate(200);
     } else {
       ui.resultTitle.textContent = '🤝 무승부';
       ui.resultMessage.textContent = '베팅이 반환됩니다';
       ui.resultMessage.style.color = '#f39c12';
+      SoundManager.draw();
     }
 
     ui.roundResult.style.display = 'flex';
   }
 
   function onDeckShuffled(deckSize) {
-    // 덱 리셔플 시 잠시 표시
-    const el = $('remaining-cards');
-    el.textContent = deckSize;
-    el.style.color = '#e94560';
-    setTimeout(() => { el.style.color = ''; }, 1500);
-
-    ui.gameStatus.textContent = '🔄 덱이 리셔플되었습니다!';
-    setTimeout(() => { ui.gameStatus.textContent = ''; }, 2000);
+    showToast('🔄 덱이 새로 섞였습니다! 카드 로그 초기화');
+    SoundManager.shuffle();
+    vibrate([50, 30, 50, 30, 50]);
+    updateCardLog([]);
   }
 
   function onGameOver(result) {
     ui.roundResult.style.display = 'none';
+    clearBetTimer();
 
     if (result.winner === 'you') {
       ui.gameOverTitle.textContent = '🏆 승리!';
       ui.gameOverMessage.textContent = '상대방의 칩이 모두 소진되었습니다.';
+      SoundManager.win();
+      vibrate([200, 100, 200, 100, 200]);
     } else {
       ui.gameOverTitle.textContent = '💀 패배...';
       ui.gameOverMessage.textContent = '당신의 칩이 모두 소진되었습니다.';
+      SoundManager.gameOver();
+      vibrate(500);
     }
 
     ui.gameOver.style.display = 'flex';
@@ -518,7 +655,6 @@
 
   ui.btnBetPlus.addEventListener('click', () => {
     if (!game) return;
-    // 콜 비용을 제외한 레이즈 가능 최대치
     const callCost = Math.max(0, game.opponentBetTotal - game.myBetTotal);
     const maxRaise = game.myChips - callCost;
     if (betAmount < maxRaise) {
@@ -528,21 +664,20 @@
   });
 
   ui.btnCall.addEventListener('click', () => {
-    if (game) game.doBet('call');
+    if (game) { SoundManager.bet(); game.doBet('call'); }
   });
 
   ui.btnRaise.addEventListener('click', () => {
-    if (game) game.doBet('raise', betAmount);
+    if (game) { SoundManager.bet(); game.doBet('raise', betAmount); }
   });
 
   ui.btnFold.addEventListener('click', () => {
-    if (game) game.doBet('fold');
+    if (game) { SoundManager.fold(); game.doBet('fold'); }
   });
 
   // ========== 라운드/게임 흐름 ==========
   ui.btnNextRound.addEventListener('click', () => {
     ui.roundResult.style.display = 'none';
-    // 카드 리셋
     ui.opponentCardValue.textContent = '?';
     ui.opponentCard.classList.remove('revealed');
     if (game) game.requestNextRound();
@@ -558,6 +693,7 @@
 
   // ========== 연결 끊김 ==========
   function handleDisconnect() {
+    clearBetTimer();
     ui.disconnectOverlay.style.display = 'flex';
   }
 
