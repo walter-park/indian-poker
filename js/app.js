@@ -577,6 +577,8 @@ function showToast(message, duration = 2800) {
       const orig = btn.textContent;
       btn.textContent = '✅';
       setTimeout(() => { btn.textContent = orig; }, 1500);
+    }).catch(() => {
+      showToast('복사 실패 - ID를 직접 선택해 복사하세요');
     });
   }
 
@@ -601,6 +603,8 @@ function showToast(message, duration = 2800) {
       const orig = btn.textContent;
       btn.textContent = '✅';
       setTimeout(() => { btn.textContent = orig; }, 1500);
+    }).catch(() => {
+      showToast('복사 실패 - ID를 직접 선택해 복사하세요');
     });
   }
   if (ui.hostPeerId) ui.hostPeerId.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
@@ -629,12 +633,14 @@ function showToast(message, duration = 2800) {
 
   // ========== Game UI 갱신 ==========
   function updateGameUI(state) {
+    if (!ui.myName || !ui.bettingControls) return;
     ui.myName.textContent = state.myName || '나';
     ui.opponentName.textContent = state.opponentName || '상대방';
     ui.myChips.textContent = `💰 ${state.myChips}`;
     ui.opponentChips.textContent = `💰 ${state.opponentChips}`;
     ui.potAmount.textContent = state.pot;
-    $('remaining-cards').textContent = state.remainingCards !== undefined ? state.remainingCards : '-';
+    const remainingEl = $('remaining-cards');
+    if (remainingEl) remainingEl.textContent = state.remainingCards !== undefined ? state.remainingCards : '-';
 
     // 이월 팟 표시
     if (ui.carryPotDisplay) {
@@ -649,29 +655,31 @@ function showToast(message, duration = 2800) {
     updateCardLog(state.playedCards);
 
     if (state.state === STATE.BETTING || state.state === STATE.DEALING || state.state === STATE.WAITING) {
-      ui.roundResult.style.display = 'none';
+      if (ui.roundResult) ui.roundResult.style.display = 'none';
     }
 
     // 게임 상태 텍스트
-    if (state.state === STATE.BETTING) {
-      if (state.isMyTurn) {
-        ui.gameStatus.textContent = `라운드 ${state.roundNumber} - 당신의 차례`;
-        ui.gameStatus.style.color = '#2ecc71';
-      } else {
-        ui.gameStatus.textContent = `라운드 ${state.roundNumber} - 상대방 차례`;
-        ui.gameStatus.style.color = '#f39c12';
+    if (ui.gameStatus) {
+      if (state.state === STATE.BETTING) {
+        if (state.isMyTurn) {
+          ui.gameStatus.textContent = `라운드 ${state.roundNumber} - 당신의 차례`;
+          ui.gameStatus.style.color = '#2ecc71';
+        } else {
+          ui.gameStatus.textContent = `라운드 ${state.roundNumber} - 상대방 차례`;
+          ui.gameStatus.style.color = '#f39c12';
+        }
+      } else if (state.state === STATE.DEALING) {
+        ui.gameStatus.textContent = '카드 분배 중...';
+        ui.gameStatus.style.color = '#a0a0b0';
+      } else if (state.state === STATE.WAITING) {
+        ui.gameStatus.textContent = '게임 준비 중...';
+        ui.gameStatus.style.color = '#a0a0b0';
       }
-    } else if (state.state === STATE.DEALING) {
-      ui.gameStatus.textContent = '카드 분배 중...';
-      ui.gameStatus.style.color = '#a0a0b0';
-    } else if (state.state === STATE.WAITING) {
-      ui.gameStatus.textContent = '게임 준비 중...';
-      ui.gameStatus.style.color = '#a0a0b0';
     }
 
     // 베팅 컨트롤
     const showBetting = state.state === STATE.BETTING && state.isMyTurn;
-    ui.bettingControls.style.display = showBetting ? 'block' : 'none';
+    if (ui.bettingControls) ui.bettingControls.style.display = showBetting ? 'block' : 'none';
 
     // 타이머: 내 턴이 새로 시작되면 가동
     if (showBetting && !wasMyTurn) {
@@ -695,6 +703,7 @@ function showToast(message, duration = 2800) {
 
       // 올인 판정 함수: 레이즈 금액이 남은 칩 이상이면 올인
       function updateRaiseBtn(btn, label, amount) {
+        if (!btn) return;
         const totalCost = callDiff + amount;
         const isAllIn = totalCost >= state.myChips;
         const actualAmount = isAllIn ? state.myChips - callDiff : amount;
@@ -714,31 +723,36 @@ function showToast(message, duration = 2800) {
       updateRaiseBtn(ui.btnPping, '삥', ppingAmt);
 
       // 체크: 차이 없을 때만 활성화
-      ui.btnCheck.style.display = callDiff === 0 ? '' : 'none';
-      ui.btnCheck.disabled = callDiff > 0;
+      if (ui.btnCheck) {
+        ui.btnCheck.style.display = callDiff === 0 ? '' : 'none';
+        ui.btnCheck.disabled = callDiff > 0;
+      }
 
       // 콜: 차이 있을 때만 활성화
-      if (callDiff > 0) {
-        ui.btnCall.style.display = '';
-        if (callDiff >= state.myChips) {
-          ui.btnCall.textContent = `올인 (${state.myChips})`;
+      if (ui.btnCall) {
+        if (callDiff > 0) {
+          ui.btnCall.style.display = '';
+          if (callDiff >= state.myChips) {
+            ui.btnCall.textContent = `올인 (${state.myChips})`;
+          } else {
+            ui.btnCall.textContent = `콜 (${callDiff})`;
+          }
+          ui.btnCall.disabled = false;
         } else {
-          ui.btnCall.textContent = `콜 (${callDiff})`;
+          ui.btnCall.style.display = 'none';
         }
-        ui.btnCall.disabled = false;
-      } else {
-        ui.btnCall.style.display = 'none';
       }
     } else {
-      ui.btnHalf.textContent = '하프';
-      ui.btnQuarter.textContent = '쿼터';
-      ui.btnPping.textContent = '삥';
-      ui.btnCheck.textContent = '체크';
-      ui.btnCall.textContent = '콜';
+      if (ui.btnHalf) ui.btnHalf.textContent = '하프';
+      if (ui.btnQuarter) ui.btnQuarter.textContent = '쿼터';
+      if (ui.btnPping) ui.btnPping.textContent = '삥';
+      if (ui.btnCheck) ui.btnCheck.textContent = '체크';
+      if (ui.btnCall) ui.btnCall.textContent = '콜';
     }
   }
 
   function onCardDealt(cardValue) {
+    if (!ui.opponentCardValue || !ui.opponentCard) return;
     ui.opponentCardValue.textContent = cardValue;
     ui.opponentCard.classList.add('revealed', 'card-deal-animation');
     SoundManager.cardDeal();
@@ -747,6 +761,7 @@ function showToast(message, duration = 2800) {
   }
 
   function onRoundResult(result) {
+    if (!ui.bettingControls || !ui.resultMyName) return;
     ui.bettingControls.style.display = 'none';
     clearBetTimer();
 
@@ -841,6 +856,7 @@ function showToast(message, duration = 2800) {
   }
 
   function onGameOver(result) {
+    if (!ui.roundResult || !ui.gameOverTitle) return;
     ui.roundResult.style.display = 'none';
     clearBetTimer();
 
@@ -912,19 +928,19 @@ function showToast(message, duration = 2800) {
     game.doBet('raise', actualAmount);
   }
 
-  ui.btnHalf.addEventListener('click', () => doRaise('half'));
-  ui.btnQuarter.addEventListener('click', () => doRaise('quarter'));
-  ui.btnPping.addEventListener('click', () => doRaise('pping'));
+  if (ui.btnHalf) ui.btnHalf.addEventListener('click', () => doRaise('half'));
+  if (ui.btnQuarter) ui.btnQuarter.addEventListener('click', () => doRaise('quarter'));
+  if (ui.btnPping) ui.btnPping.addEventListener('click', () => doRaise('pping'));
 
-  ui.btnCheck.addEventListener('click', () => {
+  if (ui.btnCheck) ui.btnCheck.addEventListener('click', () => {
     if (game) { SoundManager.bet(); game.doBet('call'); }
   });
 
-  ui.btnCall.addEventListener('click', () => {
+  if (ui.btnCall) ui.btnCall.addEventListener('click', () => {
     if (game) { SoundManager.bet(); game.doBet('call'); }
   });
 
-  ui.btnFold.addEventListener('click', () => {
+  if (ui.btnFold) ui.btnFold.addEventListener('click', () => {
     if (game) { SoundManager.fold(); game.doBet('fold'); }
   });
 
@@ -940,18 +956,18 @@ function showToast(message, duration = 2800) {
   }
 
   // ========== 라운드/게임 흐름 ==========
-  ui.btnNextRound.addEventListener('click', () => {
-    ui.roundResult.style.display = 'none';
-    ui.opponentCardValue.textContent = '?';
-    ui.opponentCard.classList.remove('revealed');
+  if (ui.btnNextRound) ui.btnNextRound.addEventListener('click', () => {
+    if (ui.roundResult) ui.roundResult.style.display = 'none';
+    if (ui.opponentCardValue) ui.opponentCardValue.textContent = '?';
+    if (ui.opponentCard) ui.opponentCard.classList.remove('revealed');
     if (game) game.requestNextRound();
   });
 
-  ui.btnNewGame.addEventListener('click', () => {
-    ui.gameOver.style.display = 'none';
-    ui.roundResult.style.display = 'none';
-    ui.opponentCardValue.textContent = '?';
-    ui.opponentCard.classList.remove('revealed');
+  if (ui.btnNewGame) ui.btnNewGame.addEventListener('click', () => {
+    if (ui.gameOver) ui.gameOver.style.display = 'none';
+    if (ui.roundResult) ui.roundResult.style.display = 'none';
+    if (ui.opponentCardValue) ui.opponentCardValue.textContent = '?';
+    if (ui.opponentCard) ui.opponentCard.classList.remove('revealed');
     roundHistory = [];
     updateHistoryPanel();
     if (ui.historyPanel) ui.historyPanel.style.display = 'none';
@@ -962,11 +978,11 @@ function showToast(message, duration = 2800) {
   // ========== 연결 끊김 ==========
   function handleDisconnect() {
     clearBetTimer();
-    ui.disconnectOverlay.style.display = 'flex';
+    if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'flex';
   }
 
-  ui.btnBackLobby.addEventListener('click', () => {
-    ui.disconnectOverlay.style.display = 'none';
+  if (ui.btnBackLobby) ui.btnBackLobby.addEventListener('click', () => {
+    if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'none';
     connMgr.destroy();
     game = null;
     showScreen('lobby');

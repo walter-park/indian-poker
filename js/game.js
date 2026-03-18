@@ -76,6 +76,10 @@ class Game {
     // 라운드 히스토리 (게임 오버 시 요약용)
     this._roundHistory = [];
 
+    // 라운드 전환 중복 방지
+    this._nextRoundRequested = false;
+    this._newGameRequested = false;
+
     // Host 전용
     this._hostCards = { host: null, guest: null };
 
@@ -249,6 +253,7 @@ class Game {
 
       case MSG.NEXT_ROUND:
         if (this.state === STATE.DEALING || this.state === STATE.BETTING) break;
+        if (this._nextRoundRequested) break;
         this._resetRound();
         if (this.conn.isHost) {
           setTimeout(() => this._startNewRound(), 500);
@@ -267,6 +272,7 @@ class Game {
         break;
 
       case MSG.NEW_GAME:
+        if (this._newGameRequested) break;
         this._resetGame();
         if (this.conn.isHost) {
           setTimeout(() => this._startNewRound(), 1000);
@@ -363,8 +369,6 @@ class Game {
     this.opponentBetTotal = ante;
     this._betActionsCount = 0;
 
-    this._updateUI();
-
     // 선공: 이전 라운드 패자 우선 (첫 라운드는 번갈아)
     let hostFirst;
     if (this._lastRoundLoser === null) {
@@ -440,6 +444,8 @@ class Game {
     }
 
     if (action === 'raise') {
+      if (!Number.isFinite(amount) || amount <= 0) return;
+
       if (fromHost) {
         const callDiff = this.opponentBetTotal - this.myBetTotal;
         const totalCost = callDiff + amount;
@@ -637,22 +643,33 @@ class Game {
 
   requestNextRound() {
     if (this._isGameOver) return;
+    if (this._nextRoundRequested) return;
+    this._nextRoundRequested = true;
     this.conn.send({ type: MSG.NEXT_ROUND });
     this._resetRound();
     if (this.conn.isHost) {
-      setTimeout(() => this._startNewRound(), 500);
+      setTimeout(() => {
+        this._nextRoundRequested = false;
+        this._startNewRound();
+      }, 500);
     }
   }
 
   requestNewGame() {
+    if (this._newGameRequested) return;
+    this._newGameRequested = true;
     this.conn.send({ type: MSG.NEW_GAME });
     this._resetGame();
     if (this.conn.isHost) {
-      setTimeout(() => this._startNewRound(), 1000);
+      setTimeout(() => {
+        this._newGameRequested = false;
+        this._startNewRound();
+      }, 1000);
     }
   }
 
   _resetRound() {
+    this.state = STATE.WAITING;
     this.myCard = null;
     this.opponentCard = null;
     this.pot = 0;
@@ -678,7 +695,8 @@ class Game {
     this._deck = [];
     this.remainingCards = 0;
     this.playedCards = [];
-    this.state = STATE.WAITING;
+    this._nextRoundRequested = false;
+    this._newGameRequested = false;
     Game.clearSession();
     this._updateUI();
   }

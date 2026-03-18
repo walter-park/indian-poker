@@ -38,6 +38,7 @@ class ConnectionManager {
 
       this.peer.on('open', (id) => {
         this.peerId = id;
+        this._createRetries = 0;
         console.log('[Host] Peer opened with ID:', id);
         resolve(id);
       });
@@ -50,8 +51,8 @@ class ConnectionManager {
 
       this.peer.on('error', (err) => {
         console.error('[Host] Peer error:', err);
-        if (err.type === 'unavailable-id') {
-          // ID 충돌 시 재시도
+        if (err.type === 'unavailable-id' && (this._createRetries || 0) < 3) {
+          this._createRetries = (this._createRetries || 0) + 1;
           this.peer.destroy();
           this.createHost().then(resolve).catch(reject);
         } else {
@@ -92,23 +93,24 @@ class ConnectionManager {
           serialization: 'json',
         });
 
+        const timeoutId = setTimeout(() => {
+          if (!this.conn) {
+            reject(new Error('연결 시간 초과'));
+          }
+        }, 15000);
+
         conn.on('open', () => {
+          clearTimeout(timeoutId);
           console.log('[Guest] Connected to host');
           this._setupConnection(conn);
           resolve();
         });
 
         conn.on('error', (err) => {
+          clearTimeout(timeoutId);
           console.error('[Guest] Connection error:', err);
           reject(err);
         });
-
-        // 연결 타임아웃
-        setTimeout(() => {
-          if (!this.conn) {
-            reject(new Error('연결 시간 초과'));
-          }
-        }, 15000);
       });
 
       this.peer.on('error', (err) => {
