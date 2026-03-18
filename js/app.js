@@ -131,6 +131,8 @@ function showToast(message, duration = 2800) {
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = message;
+  const fadeStart = Math.max(0, duration - 300);
+  toast.style.animation = `toastIn 0.3s ease-out, toastOut 0.3s ease-in ${fadeStart}ms forwards`;
   container.appendChild(toast);
   setTimeout(() => { toast.remove(); }, duration);
 }
