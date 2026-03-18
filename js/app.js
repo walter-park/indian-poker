@@ -71,6 +71,14 @@
     // Disconnect
     disconnectOverlay: $('disconnect-overlay'),
     btnBackLobby: $('btn-back-lobby'),
+    // Room Info
+    roomInfoBadge: $('room-info-badge'),
+    roomInfoQr: $('room-info-qr'),
+    roomInfoId: $('room-info-id'),
+    roomInfoOverlay: $('room-info-overlay'),
+    roomInfoExpandedQr: $('room-info-expanded-qr'),
+    roomInfoExpandedId: $('room-info-expanded-id'),
+    btnCloseRoomInfo: $('btn-close-room-info'),
   };
 
   // ========== 화면 전환 ==========
@@ -279,6 +287,66 @@
     checkSavedSession();
   });
 
+  // ========== 방 정보 배지 ==========
+  function showRoomInfoBadge() {
+    // Host의 Peer ID (방 ID) 가져오기
+    const roomId = connMgr.isHost
+      ? connMgr.peerId
+      : (connMgr.conn ? connMgr.conn.peer : null);
+
+    if (!roomId) {
+      ui.roomInfoBadge.style.display = 'none';
+      return;
+    }
+
+    // 미니 QR 생성
+    ui.roomInfoQr.innerHTML = '';
+    const miniQr = qrcode(0, 'M');
+    miniQr.addData(roomId);
+    miniQr.make();
+    const miniImg = document.createElement('div');
+    miniImg.innerHTML = miniQr.createImgTag(1, 0);
+    const imgEl = miniImg.querySelector('img');
+    if (imgEl) {
+      imgEl.style.width = '40px';
+      imgEl.style.height = '40px';
+      imgEl.style.borderRadius = '4px';
+    }
+    ui.roomInfoQr.appendChild(imgEl || miniImg.firstChild);
+
+    // 방 ID 표시
+    ui.roomInfoId.textContent = roomId;
+
+    // 확대 오버레이용 QR
+    ui.roomInfoExpandedQr.innerHTML = '';
+    const bigQr = qrcode(0, 'M');
+    bigQr.addData(roomId);
+    bigQr.make();
+    const bigImg = document.createElement('div');
+    bigImg.innerHTML = bigQr.createImgTag(5, 10);
+    ui.roomInfoExpandedQr.appendChild(bigImg.firstChild);
+
+    ui.roomInfoExpandedId.textContent = roomId;
+
+    ui.roomInfoBadge.style.display = 'flex';
+  }
+
+  // 배지 클릭 → 확대 오버레이
+  ui.roomInfoBadge.addEventListener('click', () => {
+    ui.roomInfoOverlay.style.display = 'flex';
+  });
+
+  ui.btnCloseRoomInfo.addEventListener('click', () => {
+    ui.roomInfoOverlay.style.display = 'none';
+  });
+
+  // 오버레이 배경 클릭으로도 닫기
+  ui.roomInfoOverlay.addEventListener('click', (e) => {
+    if (e.target === ui.roomInfoOverlay) {
+      ui.roomInfoOverlay.style.display = 'none';
+    }
+  });
+
   // ========== 게임 시작 ==========
   function startGame(resumeSession) {
     stopQrScanner();
@@ -292,6 +360,7 @@
     game.onGameOver = onGameOver;
 
     showScreen('game');
+    showRoomInfoBadge();
     game.start(getNickname(), resumeSession || null);
   }
 

@@ -81,6 +81,15 @@
   <!-- 게임 화면 -->
   <div id="screen-game" class="screen">
     <div class="game-container">
+      <!-- 방 정보 (좌상단 미니 QR + 방 ID) -->
+      <div class="room-info-badge" id="room-info-badge" style="display: none;">
+        <div class="room-info-qr" id="room-info-qr"></div>
+        <div class="room-info-text">
+          <span class="room-info-label">방 ID</span>
+          <span class="room-info-id" id="room-info-id">-</span>
+        </div>
+      </div>
+
       <!-- 상대방 정보 -->
       <div class="opponent-area">
         <div class="player-info">
@@ -158,6 +167,17 @@
           <button id="btn-new-game" class="btn btn-primary">새 게임</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 방 정보 확대 오버레이 -->
+  <div id="room-info-overlay" class="room-info-overlay" style="display: none;">
+    <div class="room-info-expanded">
+      <h3>방 연결 정보</h3>
+      <div class="room-info-expanded-qr" id="room-info-expanded-qr"></div>
+      <div class="room-info-expanded-id" id="room-info-expanded-id">-</div>
+      <p class="room-info-expanded-hint">이 QR코드를 스캔하거나 ID를 입력하면 연결됩니다</p>
+      <button id="btn-close-room-info" class="btn btn-primary" style="min-width: 120px;">닫기</button>
     </div>
   </div>
 
