@@ -164,6 +164,7 @@ function showToast(message, duration = 2800) {
     btnDiscardSession: $('btn-discard-session'),
     // Host waiting
     hostPeerId: $('host-peer-id'),
+    hostPeerIdCopy: $('host-peer-id-copy'),
     qrContainer: $('qr-code-container'),
     hostStatus: $('host-status'),
     btnBackHost: $('btn-back-host'),
@@ -591,6 +592,19 @@ function showToast(message, duration = 2800) {
   ui.roomInfoOverlay.addEventListener('click', (e) => {
     if (e.target === ui.roomInfoOverlay) ui.roomInfoOverlay.style.display = 'none';
   });
+
+  // Host waiting screen copy
+  function copyHostPeerId(btn) {
+    const id = ui.hostPeerId.textContent;
+    if (!id || id === '-') return;
+    navigator.clipboard.writeText(id).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = '✅';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
+  ui.hostPeerId.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
+  ui.hostPeerIdCopy.addEventListener('click', () => { copyHostPeerId(ui.hostPeerIdCopy); });
 
   // ========== 게임 시작 ==========
   function startGame(resumeSession) {
