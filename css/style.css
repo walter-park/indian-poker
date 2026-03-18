@@ -95,6 +95,13 @@ body {
   align-items: center;
 }
 
+.version-info {
+  margin-top: 2.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
 /* Buttons */
 .btn {
   padding: 0.9rem 2rem;
