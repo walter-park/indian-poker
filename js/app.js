@@ -89,11 +89,12 @@
 
       // QR 코드 생성
       ui.qrContainer.innerHTML = '';
-      await QRCode.toCanvas(ui.qrContainer.appendChild(document.createElement('canvas')), peerId, {
-        width: 200,
-        margin: 2,
-        color: { dark: '#000000', light: '#ffffff' },
-      });
+      const qr = qrcode(0, 'M');
+      qr.addData(peerId);
+      qr.make();
+      const qrImg = document.createElement('div');
+      qrImg.innerHTML = qr.createImgTag(5, 10);
+      ui.qrContainer.appendChild(qrImg.firstChild);
 
       // 연결 콜백 설정
       connMgr.onConnected = () => {
