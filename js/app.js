@@ -204,6 +204,15 @@
   });
 
   ui.btnJoinRoom.addEventListener('click', () => {
+    // 이전 방 ID 복원
+    const lastRoomId = localStorage.getItem('lastRoomId');
+    if (lastRoomId) {
+      ui.manualPeerId.value = lastRoomId;
+      $('btn-clear-peer-id').style.display = 'flex';
+    } else {
+      ui.manualPeerId.value = '';
+      $('btn-clear-peer-id').style.display = 'none';
+    }
     showScreen('guestJoin');
     startQrScanner();
   });
@@ -247,11 +256,14 @@
 
   // ========== Guest 연결 ==========
   async function connectToHost(hostId) {
+    const trimmedId = hostId.trim();
     try {
       ui.guestStatus.textContent = '연결 중...';
       ui.guestStatus.style.color = '#f39c12';
 
       connMgr.onConnected = () => {
+        // 연결 성공 시 방 ID 저장
+        localStorage.setItem('lastRoomId', trimmedId);
         ui.guestStatus.textContent = '✅ 연결 성공!';
         ui.guestStatus.style.color = '#2ecc71';
         startGame();
@@ -259,7 +271,7 @@
 
       connMgr.onDisconnected = handleDisconnect;
 
-      await connMgr.joinHost(hostId.trim());
+      await connMgr.joinHost(trimmedId);
     } catch (err) {
       ui.guestStatus.textContent = '❌ 연결 실패: ' + err.message;
       ui.guestStatus.style.color = '#e74c3c';
@@ -271,6 +283,19 @@
     if (!hostId) return;
     stopQrScanner();
     connectToHost(hostId);
+  });
+
+  // X 버튼: 방 ID 초기화
+  $('btn-clear-peer-id').addEventListener('click', () => {
+    ui.manualPeerId.value = '';
+    $('btn-clear-peer-id').style.display = 'none';
+    localStorage.removeItem('lastRoomId');
+    ui.manualPeerId.focus();
+  });
+
+  // input 변경 시 X 버튼 표시/숨김
+  ui.manualPeerId.addEventListener('input', () => {
+    $('btn-clear-peer-id').style.display = ui.manualPeerId.value ? 'flex' : 'none';
   });
 
   // ========== 뒤로가기 ==========

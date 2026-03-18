@@ -69,7 +69,10 @@
       <div class="divider"><span>또는</span></div>
 
       <div class="manual-join">
-        <input type="text" id="manual-peer-id" placeholder="방 ID 직접 입력">
+        <div class="input-clearable">
+          <input type="text" id="manual-peer-id" placeholder="방 ID 직접 입력">
+          <button type="button" id="btn-clear-peer-id" class="btn-clear" style="display: none;">&times;</button>
+        </div>
         <button id="btn-manual-connect" class="btn btn-primary">연결</button>
       </div>
 

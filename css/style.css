@@ -314,9 +314,16 @@ body {
   align-items: center;
 }
 
-.manual-join input {
+.input-clearable {
   flex: 1;
-  padding: 0.7rem 1rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-clearable input {
+  width: 100%;
+  padding: 0.7rem 2.2rem 0.7rem 1rem;
   border: 2px solid var(--bg-card);
   border-radius: 12px;
   background: var(--bg-secondary);
@@ -325,8 +332,31 @@ body {
   outline: none;
 }
 
-.manual-join input:focus {
+.input-clearable input:focus {
   border-color: var(--accent);
+}
+
+.btn-clear {
+  position: absolute;
+  right: 0.5rem;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  color: var(--bg-primary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.btn-clear:active {
+  opacity: 1;
 }
 
 .manual-join .btn {
