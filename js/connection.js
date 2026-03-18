@@ -18,11 +18,11 @@ class ConnectionManager {
 
   /**
    * Host: Peer 생성 및 QR 코드용 ID 반환
+   * @param {string} [fixedId] - 재연결 시 사용할 고정 ID
    */
-  createHost() {
+  createHost(fixedId) {
     return new Promise((resolve, reject) => {
-      // 짧은 ID 생성 (6자리 영숫자)
-      const shortId = 'ip-' + Math.random().toString(36).substring(2, 8);
+      const shortId = fixedId || 'ip-' + Math.random().toString(36).substring(2, 8);
 
       this.peer = new Peer(shortId, {
         debug: 1,

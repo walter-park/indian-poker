@@ -27,6 +27,7 @@ const MSG = {
   NEXT_ROUND: 'NEXT_ROUND',         // 다음 라운드
   GAME_OVER: 'GAME_OVER',           // 게임 종료
   NEW_GAME: 'NEW_GAME',             // 새 게임
+  RECONNECT_STATE: 'RECONNECT_STATE', // 재연결 시 상태 복원
 };
 
 // 게임 상태
@@ -76,11 +77,65 @@ class Game {
     this.conn.onMessage = (data) => this._handleMessage(data);
   }
 
+  // ========== localStorage 저장/복원 ==========
+
+  static STORAGE_KEY = 'indian-poker-session';
+
+  /**
+   * 게임 상태를 localStorage에 저장
+   */
+  _saveSession() {
+    const session = {
+      hostId: this.conn.isHost ? this.conn.peerId : this._hostPeerId,
+      myChips: this.myChips,
+      opponentChips: this.opponentChips,
+      roundNumber: this.roundNumber,
+      myName: this.myName,
+      opponentName: this.opponentName,
+      isHost: this.conn.isHost,
+      timestamp: Date.now(),
+    };
+    try {
+      localStorage.setItem(Game.STORAGE_KEY, JSON.stringify(session));
+    } catch (e) {
+      console.warn('[Game] Failed to save session:', e);
+    }
+  }
+
+  /**
+   * localStorage에서 세션 정보 읽기
+   */
+  static loadSession() {
+    try {
+      const raw = localStorage.getItem(Game.STORAGE_KEY);
+      if (!raw) return null;
+      const session = JSON.parse(raw);
+      // 24시간 이상 지난 세션은 무시
+      if (Date.now() - session.timestamp > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(Game.STORAGE_KEY);
+        return null;
+      }
+      return session;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * 세션 삭제
+   */
+  static clearSession() {
+    localStorage.removeItem(Game.STORAGE_KEY);
+  }
+
   /**
    * 게임 시작 (연결 후 호출)
+   * @param {string} nickname
+   * @param {object} [savedSession] - 재연결 시 복원할 세션
    */
-  start(nickname) {
+  start(nickname, savedSession) {
     this.myName = nickname;
+    this._hostPeerId = this.conn.isHost ? this.conn.peerId : null;
 
     // 닉네임 교환
     this.conn.send({
@@ -88,8 +143,25 @@ class Game {
       name: nickname,
     });
 
-    // Host는 잠시 후 게임 시작
-    if (this.conn.isHost) {
+    if (savedSession && this.conn.isHost) {
+      // Host: 저장된 칩으로 복원 후 시작
+      this.myChips = savedSession.myChips;
+      this.opponentChips = savedSession.opponentChips;
+      this.roundNumber = savedSession.roundNumber;
+
+      setTimeout(() => {
+        // Guest에게 복원된 상태 전송
+        this.conn.send({
+          type: MSG.RECONNECT_STATE,
+          yourChips: this.opponentChips,
+          opponentChips: this.myChips,
+          roundNumber: this.roundNumber,
+        });
+        this._updateUI();
+        setTimeout(() => this._startNewRound(), 1000);
+      }, 1500);
+    } else if (this.conn.isHost) {
+      // Host: 새 게임
       setTimeout(() => this._startNewRound(), 1500);
     }
   }
@@ -101,6 +173,10 @@ class Game {
     switch (data.type) {
       case MSG.PLAYER_INFO:
         this.opponentName = data.name;
+        // Guest: Host의 Peer ID 저장 (재연결용)
+        if (!this.conn.isHost) {
+          this._hostPeerId = this.conn.conn ? this.conn.conn.peer : null;
+        }
         this._updateUI();
         break;
 
@@ -152,6 +228,7 @@ class Game {
         this.opponentCard = data.opponentCard;
         this.myChips = data.yourChips;
         this.opponentChips = data.opponentChips;
+        this._saveSession();
         if (this.onRoundResult) {
           this.onRoundResult({
             myCard: data.yourCard,
@@ -188,6 +265,14 @@ class Game {
         if (this.conn.isHost) {
           setTimeout(() => this._startNewRound(), 1000);
         }
+        break;
+
+      case MSG.RECONNECT_STATE:
+        // Guest: Host로부터 복원된 상태 수신
+        this.myChips = data.yourChips;
+        this.opponentChips = data.opponentChips;
+        this.roundNumber = data.roundNumber;
+        this._updateUI();
         break;
     }
   }
@@ -412,6 +497,9 @@ class Game {
       opponentChips: this.myChips,
     });
 
+    // 라운드 종료 시 세션 저장
+    this._saveSession();
+
     // 게임 오버 체크
     this._checkGameOver();
   }
@@ -425,6 +513,7 @@ class Game {
     if (this.myChips <= 0 || this.opponentChips <= 0) {
       // 즉시 GAME_OVER 상태로 전환 (다음 라운드 진입 차단)
       this._isGameOver = true;
+      Game.clearSession();
 
       const winner = this.myChips > 0 ? 'host' : 'guest';
 
@@ -533,6 +622,7 @@ class Game {
     this.roundNumber = 0;
     this._isGameOver = false;
     this.state = STATE.WAITING;
+    Game.clearSession();
     this._updateUI();
   }
 
