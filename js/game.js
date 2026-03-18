@@ -95,7 +95,6 @@ class Game {
     // UI 콜백
     this.onStateChange = null;
     this.onCardDealt = null;
-    this.onBetUpdate = null;
     this.onRoundResult = null;
     this.onGameOver = null;
     this.onDeckShuffled = null;
@@ -692,7 +691,12 @@ class Game {
       // Guest 입력 검증: 허용된 액션만 처리
       const action = data.action;
       if (action !== 'call' && action !== 'fold' && action !== 'raise') return;
-      const amount = Number(data.amount) || 0;
+      let amount = Number(data.amount) || 0;
+      // 악의적 값 방어: 음수, 비정상 값, 상대 칩 초과 차단
+      if (action === 'raise') {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        amount = Math.min(amount, this.opponentChips);
+      }
       this._processBet(action, amount, false);
     }
   }

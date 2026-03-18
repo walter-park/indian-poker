@@ -128,6 +128,10 @@ function vibrate(pattern) {
 function showToast(message, duration = 2800) {
   const container = document.getElementById('toast-container');
   if (!container) return;
+  // 토스트 최대 5개 제한 — 오래된 것부터 제거
+  while (container.children.length >= 5) {
+    container.removeChild(container.firstChild);
+  }
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = message;
@@ -1044,7 +1048,10 @@ function showToast(message, duration = 2800) {
   // ========== 연결 끊김 ==========
   function handleDisconnect() {
     clearBetTimer();
-    // 게임 상태 정리 (백그라운드 타이머 방지)
+    // 베팅 중 연결 끊김 시 현재 상태 저장
+    if (game) {
+      try { game._saveSession(); } catch (e) {}
+    }
     game = null;
     if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'flex';
   }

@@ -53,8 +53,13 @@ class ConnectionManager {
         resolve(id);
       });
 
-      // Guest가 연결해 올 때
+      // Guest가 연결해 올 때 (2인 게임이므로 첫 연결만 수락)
       this.peer.on('connection', (conn) => {
+        if (this.conn && this.conn.open) {
+          console.warn('[Host] Rejecting additional connection from:', conn.peer);
+          conn.close();
+          return;
+        }
         console.log('[Host] Guest connected:', conn.peer);
         this._setupConnection(conn);
       });
