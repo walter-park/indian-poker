@@ -642,6 +642,7 @@ function showToast(message, duration = 2800) {
     game.onRoundResult = onRoundResult;
     game.onGameOver = onGameOver;
     game.onDeckShuffled = onDeckShuffled;
+    game.onBlindUp = (ante) => showToast(`🔺 블라인드 UP! 앤티 ${ante}칩`);
 
     showScreen('game');
     showRoomInfoBadge();
@@ -679,11 +680,12 @@ function showToast(message, duration = 2800) {
     // 게임 상태 텍스트
     if (ui.gameStatus) {
       if (state.state === STATE.BETTING) {
+        const anteLabel = state.ante > 1 ? ` [앤티 ${state.ante}]` : '';
         if (state.isMyTurn) {
-          ui.gameStatus.textContent = `라운드 ${state.roundNumber} - 당신의 차례`;
+          ui.gameStatus.textContent = `라운드 ${state.roundNumber}${anteLabel} - 당신의 차례`;
           ui.gameStatus.style.color = '#2ecc71';
         } else {
-          ui.gameStatus.textContent = `라운드 ${state.roundNumber} - 상대방 차례`;
+          ui.gameStatus.textContent = `라운드 ${state.roundNumber}${anteLabel} - 상대방 차례`;
           ui.gameStatus.style.color = '#f39c12';
         }
       } else if (state.state === STATE.DEALING) {

@@ -45,6 +45,9 @@ const STATE = {
 const STARTING_CHIPS = 20;
 const MAX_RAISES_PER_ROUND = 3;
 const BET_TIMER_SECONDS = 30;
+// 블라인드 레벨: 라운드 3부터 2라운드마다 앤티 2배 증가 (홀덤 블라인드 구조)
+const BLIND_INCREASE_START = 3;
+const BLIND_INCREASE_INTERVAL = 2;
 // ⚠️ 10카드 폴드 패널티: 밸런스 테스트 완료값. 이 값을 낮추지 마세요.
 const FOLD_PENALTY_10 = 5;
 
@@ -222,6 +225,13 @@ class Game {
       case MSG.CARDS_DEALT:
         this.state = STATE.BETTING;
         this.pot = data.pot;
+        // 블라인드 레벨 업 알림 (게스트)
+        const blindLevel = data.blindLevel || data.ante;
+        if (blindLevel > 1 && blindLevel > (this._lastBlindLevel || 1)) {
+          if (this.onBlindUp) this.onBlindUp(blindLevel);
+        }
+        this._lastBlindLevel = blindLevel;
+        this.ante = blindLevel;
         this.currentBet = data.ante;
         this.myBetTotal = data.ante;
         this.opponentBetTotal = data.ante;
@@ -377,11 +387,21 @@ class Game {
     this._hostCards = { host: hostCard, guest: guestCard };
     this.remainingCards = this._deck.length;
 
-    const ante = 1;
-    this.myChips -= ante;
-    this.opponentChips -= ante;
-    this.pot = ante * 2 + this._carryPot;
+    const ante = this._getAnte();
+    this.ante = ante;
+    // 앤티가 칩보다 많으면 올인 앤티 (가진 칩만큼만)
+    const myAnte = Math.min(ante, this.myChips);
+    const oppAnte = Math.min(ante, this.opponentChips);
+    this.myChips -= myAnte;
+    this.opponentChips -= oppAnte;
+    this.pot = myAnte + oppAnte + this._carryPot;
     this._carryPot = 0;
+
+    // 블라인드 레벨 업 알림 (호스트)
+    if (this.roundNumber === BLIND_INCREASE_START ||
+        (this.roundNumber > BLIND_INCREASE_START && (this.roundNumber - BLIND_INCREASE_START) % BLIND_INCREASE_INTERVAL === 0)) {
+      if (this.onBlindUp) this.onBlindUp(ante);
+    }
 
     this.conn.send({
       type: MSG.CARD_INFO,
@@ -397,16 +417,17 @@ class Game {
     this.conn.send({
       type: MSG.CARDS_DEALT,
       pot: this.pot,
-      ante: ante,
+      ante: oppAnte,
+      blindLevel: ante,
       yourChips: this.opponentChips,
       opponentChips: this.myChips,
       playedCards: this.playedCards,
     });
 
     this.state = STATE.BETTING;
-    this.currentBet = ante;
-    this.myBetTotal = ante;
-    this.opponentBetTotal = ante;
+    this.currentBet = Math.max(myAnte, oppAnte);
+    this.myBetTotal = myAnte;
+    this.opponentBetTotal = oppAnte;
     this._betActionsCount = 0;
 
     // 선공: 이전 라운드 패자 우선 (첫 라운드는 번갈아)
@@ -730,6 +751,13 @@ class Game {
     } else {
       this._newGameRequested = false;
     }
+  }
+
+  _getAnte() {
+    // 라운드 1-2: 앤티 1, 라운드 3-4: 앤티 2, 라운드 5-6: 앤티 4, ...
+    if (this.roundNumber < BLIND_INCREASE_START) return 1;
+    const level = Math.floor((this.roundNumber - BLIND_INCREASE_START) / BLIND_INCREASE_INTERVAL);
+    return Math.pow(2, level + 1);
   }
 
   _resetRound() {
