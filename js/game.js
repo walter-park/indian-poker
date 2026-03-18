@@ -45,6 +45,7 @@ const STATE = {
 const STARTING_CHIPS = 20;
 const MAX_RAISES_PER_ROUND = 3;
 const BET_TIMER_SECONDS = 30;
+const FOLD_PENALTY_10 = 3;
 
 class Game {
   constructor(connectionManager) {
@@ -71,6 +72,9 @@ class Game {
     this._isGameOver = false;
     this._lastRoundLoser = null;
     this._carryPot = 0;
+
+    // 라운드 히스토리 (게임 오버 시 요약용)
+    this._roundHistory = [];
 
     // Host 전용
     this._hostCards = { host: null, guest: null };
@@ -236,7 +240,9 @@ class Game {
             opponentCard: data.opponentCard,
             winner: data.winner,
             potWon: data.potWon,
+            myBetTotal: data.yourBetTotal,
             foldPenalty: data.foldPenalty || 0,
+            roundNumber: data.roundNumber,
           });
         }
         break;
@@ -492,7 +498,7 @@ class Game {
 
       const folderCard = winnerByFold === 'guest' ? hostCard : guestCard;
       if (folderCard === 10) {
-        foldPenalty = Math.min(5, winnerByFold === 'guest' ? this.myChips : this.opponentChips);
+        foldPenalty = Math.min(FOLD_PENALTY_10, winnerByFold === 'guest' ? this.myChips : this.opponentChips);
         if (winnerByFold === 'guest') {
           this.myChips -= foldPenalty;
           this.opponentChips += foldPenalty;
@@ -530,12 +536,24 @@ class Game {
     // 카드 히스토리에 추가
     this.playedCards.push(hostCard, guestCard);
 
+    // 라운드 히스토리 기록
+    this._roundHistory.push({
+      round: this.roundNumber,
+      hostCard,
+      guestCard,
+      winner,
+      pot: this.pot,
+      foldPenalty,
+    });
+
     const hostResult = {
       myCard: hostCard,
       opponentCard: guestCard,
       winner: winner === 'host' ? 'you' : winner === 'guest' ? 'opponent' : 'draw',
       potWon: this.pot,
+      myBetTotal: this.myBetTotal,
       foldPenalty: foldPenalty,
+      roundNumber: this.roundNumber,
     };
     this.myCard = hostCard;
     this.state = STATE.ROUND_END;
@@ -549,10 +567,12 @@ class Game {
       opponentCard: hostCard,
       winner: winner === 'guest' ? 'you' : winner === 'host' ? 'opponent' : 'draw',
       potWon: this.pot,
+      yourBetTotal: this.opponentBetTotal,
       yourChips: this.opponentChips,
       opponentChips: this.myChips,
       foldPenalty: foldPenalty,
       playedCards: this.playedCards,
+      roundNumber: this.roundNumber,
     });
 
     this._saveSession();
@@ -654,6 +674,7 @@ class Game {
     this._isGameOver = false;
     this._lastRoundLoser = null;
     this._carryPot = 0;
+    this._roundHistory = [];
     this._deck = [];
     this.remainingCards = 0;
     this.playedCards = [];
@@ -679,6 +700,8 @@ class Game {
         raiseCount: this._raiseCount,
         maxRaises: MAX_RAISES_PER_ROUND,
         playedCards: this.playedCards,
+        carryPot: this._carryPot,
+        roundHistory: this._roundHistory,
       });
     }
   }

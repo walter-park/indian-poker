@@ -2,6 +2,66 @@
  * 인디언 포커 - 메인 앱 (UI 바인딩 & 화면 전환)
  */
 
+// ========== 게임 설정 (사운드/진동 토글) ==========
+const GameSettings = {
+  _key: 'indian-poker-settings',
+  _data: null,
+  load() {
+    if (this._data) return this._data;
+    try {
+      this._data = JSON.parse(localStorage.getItem(this._key)) || {};
+    } catch (e) {
+      this._data = {};
+    }
+    return this._data;
+  },
+  save() {
+    try { localStorage.setItem(this._key, JSON.stringify(this._data)); } catch (e) {}
+  },
+  get soundEnabled() { return this.load().sound !== false; },
+  set soundEnabled(v) { this.load().sound = v; this.save(); },
+  get vibrationEnabled() { return this.load().vibration !== false; },
+  set vibrationEnabled(v) { this.load().vibration = v; this.save(); },
+  get tutorialSeen() { return this.load().tutorialSeen === true; },
+  set tutorialSeen(v) { this.load().tutorialSeen = v; this.save(); },
+};
+
+// ========== 게임 통계 ==========
+const GameStats = {
+  _key: 'indian-poker-stats',
+  _data: null,
+  load() {
+    if (this._data) return this._data;
+    try {
+      this._data = JSON.parse(localStorage.getItem(this._key)) || this._default();
+    } catch (e) {
+      this._data = this._default();
+    }
+    return this._data;
+  },
+  _default() {
+    return { gamesPlayed: 0, gamesWon: 0, totalRounds: 0, biggestPot: 0, currentStreak: 0, bestStreak: 0 };
+  },
+  save() {
+    try { localStorage.setItem(this._key, JSON.stringify(this._data)); } catch (e) {}
+  },
+  recordGameEnd(won, rounds, biggestPot) {
+    const d = this.load();
+    d.gamesPlayed++;
+    d.totalRounds += rounds;
+    if (biggestPot > d.biggestPot) d.biggestPot = biggestPot;
+    if (won) {
+      d.gamesWon++;
+      d.currentStreak++;
+      if (d.currentStreak > d.bestStreak) d.bestStreak = d.currentStreak;
+    } else {
+      d.currentStreak = 0;
+    }
+    this.save();
+  },
+  get() { return this.load(); },
+};
+
 // ========== 사운드 매니저 (Web Audio API) ==========
 const SoundManager = {
   _ctx: null,
@@ -13,6 +73,7 @@ const SoundManager = {
     return this._ctx;
   },
   _play(freq, duration, type = 'sine', volume = 0.12) {
+    if (!GameSettings.soundEnabled) return;
     try {
       const ctx = this._getCtx();
       const osc = ctx.createOscillator();
@@ -52,9 +113,14 @@ const SoundManager = {
     setTimeout(() => this._play(392, 0.2), 200);
     setTimeout(() => this._play(330, 0.4), 400);
   },
+  timeout() {
+    this._play(440, 0.15);
+    setTimeout(() => this._play(440, 0.15), 200);
+  },
 };
 
 function vibrate(pattern) {
+  if (!GameSettings.vibrationEnabled) return;
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
 }
 
@@ -74,6 +140,7 @@ function showToast(message, duration = 2800) {
   let game = null;
   let qrScanner = null;
   let betAmount = 1;
+  let roundHistory = [];
 
   // ========== DOM 요소 ==========
   const $ = (id) => document.getElementById(id);
@@ -145,6 +212,17 @@ function showToast(message, duration = 2800) {
     // Disconnect
     disconnectOverlay: $('disconnect-overlay'),
     btnBackLobby: $('btn-back-lobby'),
+    // Settings
+    btnToggleSound: $('btn-toggle-sound'),
+    btnToggleVibration: $('btn-toggle-vibration'),
+    // Tutorial
+    tutorialOverlay: $('tutorial-overlay'),
+    btnCloseTutorial: $('btn-close-tutorial'),
+    btnShowTutorial: $('btn-show-tutorial'),
+    // Carry pot
+    carryPotDisplay: $('carry-pot-display'),
+    // Game Over Stats
+    gameOverStats: $('game-over-stats'),
     // Room Info
     roomInfoBadge: $('room-info-badge'),
     roomInfoQr: $('room-info-qr'),
@@ -155,6 +233,11 @@ function showToast(message, duration = 2800) {
     roomInfoCopyBtn: $('room-info-copy-btn'),
     roomInfoExpandedCopyBtn: $('room-info-expanded-copy-btn'),
     btnCloseRoomInfo: $('btn-close-room-info'),
+    // History
+    btnToggleHistory: $('btn-toggle-history'),
+    historyPanel: $('history-panel'),
+    historySummary: $('history-summary'),
+    historyList: $('history-list'),
   };
 
   // ========== 베팅 타이머 ==========
@@ -180,8 +263,9 @@ function showToast(message, duration = 2800) {
       if (betTimerSeconds <= 0) {
         clearBetTimer();
         if (game) {
-          SoundManager.fold();
-          game.doBet('fold');
+          SoundManager.timeout();
+          showToast('⏰ 시간 초과 - 자동 콜');
+          game.doBet('call');
         }
       }
     }, 1000);
@@ -206,7 +290,7 @@ function showToast(message, duration = 2800) {
     if (ui.betTimer) ui.betTimer.style.display = 'none';
   }
 
-  // ========== 카드 로그 업데이트 ==========
+  // ========== 카드 로그 업데이트 (색맹 접근성 포함) ==========
   function updateCardLog(playedCards) {
     if (!ui.cardLogItems) return;
 
@@ -222,18 +306,31 @@ function showToast(message, duration = 2800) {
     for (let i = 1; i <= 10; i++) {
       const item = document.createElement('div');
       item.className = 'card-log-item';
-      if (usedCount[i] >= 2) item.classList.add('used-all');
-      else if (usedCount[i] === 1) item.classList.add('used-one');
+      const remain = 2 - usedCount[i];
+
+      // 색상 + 패턴 + 기호로 상태 표시 (색맹 접근성)
+      if (usedCount[i] >= 2) {
+        item.classList.add('used-all');
+        item.setAttribute('aria-label', `카드 ${i}: 모두 사용됨`);
+      } else if (usedCount[i] === 1) {
+        item.classList.add('used-one');
+        item.setAttribute('aria-label', `카드 ${i}: 1장 남음`);
+      } else {
+        item.setAttribute('aria-label', `카드 ${i}: 2장 남음`);
+      }
 
       const num = document.createElement('span');
       num.className = 'card-log-num';
       num.textContent = i;
       item.appendChild(num);
 
-      const remain = 2 - usedCount[i];
+      // 접근성: 숫자 + 기호로 남은 수 표시
       const badge = document.createElement('span');
       badge.className = 'card-log-remain';
-      badge.textContent = remain;
+      // ●● = 2장 남음, ●○ = 1장 남음, ○○ = 0장 남음
+      if (remain === 2) badge.textContent = '●●';
+      else if (remain === 1) badge.textContent = '●○';
+      else badge.textContent = '××';
       item.appendChild(badge);
 
       ui.cardLogItems.appendChild(item);
@@ -501,6 +598,7 @@ function showToast(message, duration = 2800) {
     stopQrScanner();
     clearBetTimer();
     wasMyTurn = false;
+    roundHistory = [];
 
     game = new Game(connMgr);
 
@@ -524,6 +622,16 @@ function showToast(message, duration = 2800) {
     ui.opponentChips.textContent = `💰 ${state.opponentChips}`;
     ui.potAmount.textContent = state.pot;
     $('remaining-cards').textContent = state.remainingCards !== undefined ? state.remainingCards : '-';
+
+    // 이월 팟 표시
+    if (ui.carryPotDisplay) {
+      if (state.carryPot > 0) {
+        ui.carryPotDisplay.textContent = `(이월 +${state.carryPot})`;
+        ui.carryPotDisplay.style.display = 'inline';
+      } else {
+        ui.carryPotDisplay.style.display = 'none';
+      }
+    }
 
     updateCardLog(state.playedCards);
 
@@ -612,30 +720,82 @@ function showToast(message, duration = 2800) {
     ui.resultMyCard.textContent = result.myCard;
     ui.resultOpponentCard.textContent = result.opponentCard;
 
+    // 순이익 계산: 팟 획득 - 내가 베팅한 금액
+    const myBet = result.myBetTotal || 1;
+    let netProfit = 0;
+
     if (result.winner === 'you') {
+      netProfit = result.potWon - myBet + (result.foldPenalty || 0);
       ui.resultTitle.textContent = '🎉 승리!';
-      let msg = `+${result.potWon} 칩 획득`;
-      if (result.foldPenalty > 0) msg += ` (10 폴드 보너스: +${result.foldPenalty})`;
+      let msg = `+${netProfit} 칩`;
       ui.resultMessage.textContent = msg;
       ui.resultMessage.style.color = '#2ecc71';
       SoundManager.win();
       vibrate([100, 50, 100]);
     } else if (result.winner === 'opponent') {
+      netProfit = -(myBet + (result.foldPenalty || 0));
       ui.resultTitle.textContent = '😢 패배';
-      let msg = `-${result.potWon} 칩`;
-      if (result.foldPenalty > 0) msg += ` (10 폴드 패널티: -${result.foldPenalty})`;
+      let msg = `${netProfit} 칩`;
       ui.resultMessage.textContent = msg;
       ui.resultMessage.style.color = '#e74c3c';
       SoundManager.lose();
       vibrate(200);
     } else {
+      netProfit = 0;
       ui.resultTitle.textContent = '🤝 무승부';
-      ui.resultMessage.textContent = '베팅이 반환됩니다';
+      ui.resultMessage.textContent = '±0 칩';
       ui.resultMessage.style.color = '#f39c12';
       SoundManager.draw();
     }
 
+    // 히스토리 기록
+    roundHistory.push({
+      round: result.roundNumber || roundHistory.length + 1,
+      myCard: result.myCard,
+      opponentCard: result.opponentCard,
+      winner: result.winner,
+      netProfit: netProfit,
+    });
+    updateHistoryPanel();
+
     ui.roundResult.style.display = 'flex';
+  }
+
+  // ========== 라운드 히스토리 ==========
+  function updateHistoryPanel() {
+    if (!ui.historyList) return;
+
+    const wins = roundHistory.filter(r => r.winner === 'you').length;
+    const losses = roundHistory.filter(r => r.winner === 'opponent').length;
+    const draws = roundHistory.filter(r => r.winner === 'draw').length;
+    const totalNet = roundHistory.reduce((sum, r) => sum + r.netProfit, 0);
+
+    if (ui.historySummary) {
+      const netStr = totalNet >= 0 ? `+${totalNet}` : `${totalNet}`;
+      ui.historySummary.textContent = `${wins}승 ${losses}패 ${draws}무 (${netStr})`;
+    }
+
+    ui.historyList.innerHTML = '';
+    for (let i = roundHistory.length - 1; i >= 0; i--) {
+      const r = roundHistory[i];
+      const row = document.createElement('div');
+      row.className = 'history-row';
+
+      let icon, colorClass;
+      if (r.winner === 'you') { icon = 'W'; colorClass = 'history-win'; }
+      else if (r.winner === 'opponent') { icon = 'L'; colorClass = 'history-lose'; }
+      else { icon = 'D'; colorClass = 'history-draw'; }
+
+      const netStr = r.netProfit >= 0 ? `+${r.netProfit}` : `${r.netProfit}`;
+
+      row.innerHTML =
+        `<span class="history-round">#${r.round}</span>` +
+        `<span class="history-badge ${colorClass}">${icon}</span>` +
+        `<span class="history-cards">${r.myCard} vs ${r.opponentCard}</span>` +
+        `<span class="history-net ${colorClass}">${netStr}</span>`;
+
+      ui.historyList.appendChild(row);
+    }
   }
 
   function onDeckShuffled(deckSize) {
@@ -649,16 +809,50 @@ function showToast(message, duration = 2800) {
     ui.roundResult.style.display = 'none';
     clearBetTimer();
 
-    if (result.winner === 'you') {
-      ui.gameOverTitle.textContent = '🏆 승리!';
+    const won = result.winner === 'you';
+    const biggestPot = roundHistory.reduce((max, r) => {
+      const abs = Math.abs(r.netProfit);
+      return abs > max ? abs : max;
+    }, 0);
+    GameStats.recordGameEnd(won, roundHistory.length, biggestPot);
+
+    if (won) {
+      ui.gameOverTitle.textContent = '승리!';
       ui.gameOverMessage.textContent = '상대방의 칩이 모두 소진되었습니다.';
       SoundManager.win();
       vibrate([200, 100, 200, 100, 200]);
     } else {
-      ui.gameOverTitle.textContent = '💀 패배...';
+      ui.gameOverTitle.textContent = '패배...';
       ui.gameOverMessage.textContent = '당신의 칩이 모두 소진되었습니다.';
       SoundManager.gameOver();
       vibrate(500);
+    }
+
+    // 게임 통계 표시
+    if (ui.gameOverStats) {
+      const stats = GameStats.get();
+      const wins = roundHistory.filter(r => r.winner === 'you').length;
+      const losses = roundHistory.filter(r => r.winner === 'opponent').length;
+      const draws = roundHistory.filter(r => r.winner === 'draw').length;
+
+      ui.gameOverStats.innerHTML =
+        '<div class="game-over-stats-section">' +
+        '<h4>이번 게임</h4>' +
+        '<div class="stats-grid">' +
+        '<div class="stat-item"><span class="stat-label">라운드</span><span class="stat-value">' + roundHistory.length + '</span></div>' +
+        '<div class="stat-item"><span class="stat-label">승/패/무</span><span class="stat-value">' + wins + '/' + losses + '/' + draws + '</span></div>' +
+        '</div>' +
+        '</div>' +
+        '<div class="game-over-stats-section">' +
+        '<h4>누적 전적</h4>' +
+        '<div class="stats-grid">' +
+        '<div class="stat-item"><span class="stat-label">총 게임</span><span class="stat-value">' + stats.gamesPlayed + '</span></div>' +
+        '<div class="stat-item"><span class="stat-label">승률</span><span class="stat-value">' + (stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0) + '%</span></div>' +
+        '<div class="stat-item"><span class="stat-label">연승</span><span class="stat-value">' + stats.currentStreak + '</span></div>' +
+        '<div class="stat-item"><span class="stat-label">최고 연승</span><span class="stat-value">' + stats.bestStreak + '</span></div>' +
+        '</div>' +
+        '</div>';
+      ui.gameOverStats.style.display = 'block';
     }
 
     ui.gameOver.style.display = 'flex';
@@ -694,6 +888,17 @@ function showToast(message, duration = 2800) {
     if (game) { SoundManager.fold(); game.doBet('fold'); }
   });
 
+  // ========== 히스토리 토글 ==========
+  if (ui.btnToggleHistory) {
+    ui.btnToggleHistory.addEventListener('click', () => {
+      const panel = ui.historyPanel;
+      if (!panel) return;
+      const isVisible = panel.style.display !== 'none';
+      panel.style.display = isVisible ? 'none' : 'block';
+      ui.btnToggleHistory.classList.toggle('active', !isVisible);
+    });
+  }
+
   // ========== 라운드/게임 흐름 ==========
   ui.btnNextRound.addEventListener('click', () => {
     ui.roundResult.style.display = 'none';
@@ -707,6 +912,10 @@ function showToast(message, duration = 2800) {
     ui.roundResult.style.display = 'none';
     ui.opponentCardValue.textContent = '?';
     ui.opponentCard.classList.remove('revealed');
+    roundHistory = [];
+    updateHistoryPanel();
+    if (ui.historyPanel) ui.historyPanel.style.display = 'none';
+    if (ui.btnToggleHistory) ui.btnToggleHistory.classList.remove('active');
     if (game) game.requestNewGame();
   });
 
