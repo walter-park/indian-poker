@@ -60,6 +60,7 @@ class Game {
     this.isMyTurn = false;
     this.roundNumber = 0;
     this._betActionsCount = 0; // 이번 라운드 베팅 액션 수 (첫 체크 판별용)
+    this._isGameOver = false;
 
     // Host 전용: 양쪽 카드 보관
     this._hostCards = { host: null, guest: null };
@@ -162,6 +163,8 @@ class Game {
         break;
 
       case MSG.NEXT_ROUND:
+        // 이미 새 라운드가 진행 중이면 무시 (양쪽 동시 클릭 방지)
+        if (this.state === STATE.DEALING || this.state === STATE.BETTING) break;
         this._resetRound();
         // Host가 Guest로부터 NEXT_ROUND를 받으면 새 라운드 시작
         if (this.conn.isHost) {
@@ -196,6 +199,8 @@ class Game {
    */
   _startNewRound() {
     if (!this.conn.isHost) return;
+    if (this._isGameOver) return;
+    if (this.myChips <= 0 || this.opponentChips <= 0) return;
 
     this.roundNumber++;
     this.state = STATE.DEALING;
@@ -418,6 +423,9 @@ class Game {
     if (!this.conn.isHost) return;
 
     if (this.myChips <= 0 || this.opponentChips <= 0) {
+      // 즉시 GAME_OVER 상태로 전환 (다음 라운드 진입 차단)
+      this._isGameOver = true;
+
       const winner = this.myChips > 0 ? 'host' : 'guest';
 
       setTimeout(() => {
@@ -437,7 +445,7 @@ class Game {
           yourChips: this.opponentChips,
           opponentChips: this.myChips,
         });
-      }, 3000);
+      }, 2000);
     }
   }
 
@@ -480,6 +488,7 @@ class Game {
    * 다음 라운드 요청
    */
   requestNextRound() {
+    if (this._isGameOver) return;
     this.conn.send({ type: MSG.NEXT_ROUND });
     this._resetRound();
     if (this.conn.isHost) {
@@ -522,6 +531,7 @@ class Game {
     this.myChips = 10;
     this.opponentChips = 10;
     this.roundNumber = 0;
+    this._isGameOver = false;
     this.state = STATE.WAITING;
     this._updateUI();
   }

@@ -219,6 +219,13 @@
     ui.opponentChips.textContent = `💰 ${state.opponentChips}`;
     ui.potAmount.textContent = state.pot;
 
+    // 상대가 다음 라운드를 시작했으면 결과 화면 자동 닫기
+    if (state.state === STATE.BETTING || state.state === STATE.DEALING || state.state === STATE.WAITING) {
+      ui.roundResult.style.display = 'none';
+      ui.opponentCardValue.textContent = '?';
+      ui.opponentCard.classList.remove('revealed');
+    }
+
     // 게임 상태 텍스트
     if (state.state === STATE.BETTING) {
       if (state.isMyTurn) {
