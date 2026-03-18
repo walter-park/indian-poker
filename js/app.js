@@ -358,6 +358,7 @@
     game.onCardDealt = onCardDealt;
     game.onRoundResult = onRoundResult;
     game.onGameOver = onGameOver;
+    game.onDeckShuffled = onDeckShuffled;
 
     showScreen('game');
     showRoomInfoBadge();
@@ -371,6 +372,7 @@
     ui.myChips.textContent = `💰 ${state.myChips}`;
     ui.opponentChips.textContent = `💰 ${state.opponentChips}`;
     ui.potAmount.textContent = state.pot;
+    $('remaining-cards').textContent = state.remainingCards !== undefined ? state.remainingCards : '-';
 
     // 상대가 다음 라운드를 시작했으면 결과 화면 자동 닫기
     if (state.state === STATE.BETTING || state.state === STATE.DEALING || state.state === STATE.WAITING) {
@@ -452,6 +454,17 @@
     }
 
     ui.roundResult.style.display = 'flex';
+  }
+
+  function onDeckShuffled(deckSize) {
+    // 덱 리셔플 시 잠시 표시
+    const el = $('remaining-cards');
+    el.textContent = deckSize;
+    el.style.color = '#e94560';
+    setTimeout(() => { el.style.color = ''; }, 1500);
+
+    ui.gameStatus.textContent = '🔄 덱이 리셔플되었습니다!';
+    setTimeout(() => { ui.gameStatus.textContent = ''; }, 2000);
   }
 
   function onGameOver(result) {

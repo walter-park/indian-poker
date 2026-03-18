@@ -539,14 +539,29 @@ body {
   margin: 0.5rem 0;
 }
 
-.pot-display {
+.game-info-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.pot-display,
+.deck-display {
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--gold);
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
+}
+
+.pot-display {
+  color: var(--gold);
+}
+
+.deck-display {
+  color: var(--text-secondary);
+  font-size: 1rem;
 }
 
 .game-status {
@@ -780,6 +795,10 @@ body {
 
   .pot-display {
     font-size: 1.1rem;
+  }
+
+  .deck-display {
+    font-size: 0.85rem;
   }
 }
 

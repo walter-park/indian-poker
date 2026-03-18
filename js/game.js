@@ -28,6 +28,7 @@ const MSG = {
   GAME_OVER: 'GAME_OVER',           // 게임 종료
   NEW_GAME: 'NEW_GAME',             // 새 게임
   RECONNECT_STATE: 'RECONNECT_STATE', // 재연결 시 상태 복원
+  DECK_SHUFFLED: 'DECK_SHUFFLED',   // 덱 리셔플 알림
 };
 
 // 게임 상태
@@ -65,6 +66,11 @@ class Game {
 
     // Host 전용: 양쪽 카드 보관
     this._hostCards = { host: null, guest: null };
+
+    // 덱 시스템 (Host 전용 관리)
+    this._deck = [];          // 남은 카드 배열
+    this._deckSize = 0;       // 전체 덱 크기 (UI 표시용)
+    this.remainingCards = 0;  // 남은 카드 수 (양쪽 공유)
 
     // UI 콜백
     this.onStateChange = null;
@@ -183,6 +189,9 @@ class Game {
       case MSG.CARD_INFO:
         // 상대방의 카드가 내 화면에 표시됨
         this.opponentCard = data.value;
+        if (data.remainingCards !== undefined) {
+          this.remainingCards = data.remainingCards;
+        }
         if (this.onCardDealt) {
           this.onCardDealt(data.value);
         }
@@ -274,7 +283,38 @@ class Game {
         this.roundNumber = data.roundNumber;
         this._updateUI();
         break;
+
+      case MSG.DECK_SHUFFLED:
+        this.remainingCards = data.deckSize;
+        if (this.onDeckShuffled) this.onDeckShuffled(data.deckSize);
+        this._updateUI();
+        break;
     }
+  }
+
+  // ========== 덱 관리 (Host 전용) ==========
+
+  /**
+   * Host: 새 덱 생성 및 셔플 (1~10 각 2장 = 20장)
+   */
+  _createDeck() {
+    this._deck = [];
+    for (let i = 1; i <= 10; i++) {
+      this._deck.push(i, i);
+    }
+    // Fisher-Yates 셔플
+    for (let i = this._deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this._deck[i], this._deck[j]] = [this._deck[j], this._deck[i]];
+    }
+    this._deckSize = this._deck.length;
+  }
+
+  /**
+   * Host: 덱에서 카드 1장 뽑기
+   */
+  _drawCard() {
+    return this._deck.pop();
   }
 
   // ========== Host 전용 로직 ==========
@@ -287,13 +327,21 @@ class Game {
     if (this._isGameOver) return;
     if (this.myChips <= 0 || this.opponentChips <= 0) return;
 
+    // 덱이 부족하면(2장 미만) 리셔플
+    if (this._deck.length < 2) {
+      this._createDeck();
+      this.conn.send({ type: MSG.DECK_SHUFFLED, deckSize: this._deck.length });
+      if (this.onDeckShuffled) this.onDeckShuffled(this._deck.length);
+    }
+
     this.roundNumber++;
     this.state = STATE.DEALING;
 
-    // 카드 2장 뽑기 (1~10)
-    const hostCard = Math.floor(Math.random() * 10) + 1;
-    const guestCard = Math.floor(Math.random() * 10) + 1;
+    // 덱에서 카드 2장 뽑기
+    const hostCard = this._drawCard();
+    const guestCard = this._drawCard();
     this._hostCards = { host: hostCard, guest: guestCard };
+    this.remainingCards = this._deck.length;
 
     const ante = 1; // 앤티
 
@@ -306,6 +354,7 @@ class Game {
     this.conn.send({
       type: MSG.CARD_INFO,
       value: hostCard,
+      remainingCards: this.remainingCards,
     });
 
     // Host 자신의 화면에는 Guest 카드 표시
@@ -621,6 +670,8 @@ class Game {
     this.opponentChips = 10;
     this.roundNumber = 0;
     this._isGameOver = false;
+    this._deck = [];
+    this.remainingCards = 0;
     this.state = STATE.WAITING;
     Game.clearSession();
     this._updateUI();
@@ -642,6 +693,7 @@ class Game {
         myName: this.myName,
         opponentName: this.opponentName,
         roundNumber: this.roundNumber,
+        remainingCards: this.remainingCards,
       });
     }
   }
