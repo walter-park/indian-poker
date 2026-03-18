@@ -139,7 +139,6 @@ function showToast(message, duration = 2800) {
   const connMgr = new ConnectionManager();
   let game = null;
   let qrScanner = null;
-  let betAmount = 1;
   let roundHistory = [];
 
   // ========== DOM 요소 ==========
@@ -183,11 +182,11 @@ function showToast(message, duration = 2800) {
     potAmount: $('pot-amount'),
     gameStatus: $('game-status'),
     bettingControls: $('betting-controls'),
-    betAmountDisplay: $('bet-amount'),
-    btnBetMinus: $('btn-bet-minus'),
-    btnBetPlus: $('btn-bet-plus'),
+    btnHalf: $('btn-half'),
+    btnQuarter: $('btn-quarter'),
+    btnPping: $('btn-pping'),
+    btnCheck: $('btn-check'),
     btnCall: $('btn-call'),
-    btnRaise: $('btn-raise'),
     btnFold: $('btn-fold'),
     // Timer
     betTimer: $('bet-timer'),
@@ -671,35 +670,57 @@ function showToast(message, duration = 2800) {
     wasMyTurn = showBetting;
 
     if (showBetting) {
-      const maxRaise = state.myChips - (Math.max(0, state.opponentBetTotal - state.myBetTotal));
-      betAmount = Math.min(betAmount, maxRaise);
-      betAmount = Math.max(1, betAmount);
-      ui.betAmountDisplay.textContent = betAmount;
+      const callDiff = Math.max(0, state.opponentBetTotal - state.myBetTotal);
+      const chipsAfterCall = state.myChips - callDiff;
+      const raiseMaxed = state.raiseCount >= state.maxRaises;
 
-      // 콜/올인 표시
-      const callDiff = state.opponentBetTotal - state.myBetTotal;
+      // 하프/쿼터/삥 금액 계산
+      const halfAmt = Math.max(1, Math.ceil(state.pot / 2));
+      const quarterAmt = Math.max(1, Math.ceil(state.pot / 4));
+      const ppingAmt = 1;
+
+      // 올인 판정 함수: 레이즈 금액이 남은 칩 이상이면 올인
+      function updateRaiseBtn(btn, label, amount) {
+        const totalCost = callDiff + amount;
+        const isAllIn = totalCost >= state.myChips;
+        const actualAmount = isAllIn ? state.myChips - callDiff : amount;
+        const disabled = raiseMaxed || chipsAfterCall < 1;
+        btn.disabled = disabled;
+        if (disabled) {
+          btn.textContent = label;
+        } else if (isAllIn) {
+          btn.textContent = `올인 (${state.myChips})`;
+        } else {
+          btn.textContent = `${label} (${amount})`;
+        }
+      }
+
+      updateRaiseBtn(ui.btnHalf, '하프', halfAmt);
+      updateRaiseBtn(ui.btnQuarter, '쿼터', quarterAmt);
+      updateRaiseBtn(ui.btnPping, '삥', ppingAmt);
+
+      // 체크: 차이 없을 때만 활성화
+      ui.btnCheck.style.display = callDiff === 0 ? '' : 'none';
+      ui.btnCheck.disabled = callDiff > 0;
+
+      // 콜: 차이 있을 때만 활성화
       if (callDiff > 0) {
-        if (callDiff > state.myChips) {
+        ui.btnCall.style.display = '';
+        if (callDiff >= state.myChips) {
           ui.btnCall.textContent = `올인 (${state.myChips})`;
         } else {
           ui.btnCall.textContent = `콜 (${callDiff})`;
         }
         ui.btnCall.disabled = false;
       } else {
-        ui.btnCall.textContent = '체크';
-        ui.btnCall.disabled = false;
-      }
-
-      // 레이즈: 횟수 제한 + 칩 체크
-      const raiseDisabled = maxRaise < 1 || state.raiseCount >= state.maxRaises;
-      ui.btnRaise.disabled = raiseDisabled;
-      if (state.raiseCount >= state.maxRaises) {
-        ui.btnRaise.textContent = `레이즈 (${state.maxRaises}/${state.maxRaises})`;
-      } else {
-        ui.btnRaise.textContent = `레이즈 (${state.raiseCount}/${state.maxRaises})`;
+        ui.btnCall.style.display = 'none';
       }
     } else {
-      ui.btnRaise.textContent = '레이즈';
+      ui.btnHalf.textContent = '하프';
+      ui.btnQuarter.textContent = '쿼터';
+      ui.btnPping.textContent = '삥';
+      ui.btnCheck.textContent = '체크';
+      ui.btnCall.textContent = '콜';
     }
   }
 
@@ -859,29 +880,34 @@ function showToast(message, duration = 2800) {
   }
 
   // ========== 베팅 컨트롤 ==========
-  ui.btnBetMinus.addEventListener('click', () => {
-    if (betAmount > 1) {
-      betAmount--;
-      ui.betAmountDisplay.textContent = betAmount;
-    }
-  });
+  function getRaiseAmount(type) {
+    if (!game) return 1;
+    const pot = game.pot;
+    if (type === 'half') return Math.max(1, Math.ceil(pot / 2));
+    if (type === 'quarter') return Math.max(1, Math.ceil(pot / 4));
+    return 1; // 삥
+  }
 
-  ui.btnBetPlus.addEventListener('click', () => {
+  function doRaise(type) {
     if (!game) return;
-    const callCost = Math.max(0, game.opponentBetTotal - game.myBetTotal);
-    const maxRaise = game.myChips - callCost;
-    if (betAmount < maxRaise) {
-      betAmount++;
-      ui.betAmountDisplay.textContent = betAmount;
-    }
+    const callDiff = Math.max(0, game.opponentBetTotal - game.myBetTotal);
+    const amount = getRaiseAmount(type);
+    const totalCost = callDiff + amount;
+    const actualAmount = totalCost >= game.myChips ? Math.max(1, game.myChips - callDiff) : amount;
+    SoundManager.bet();
+    game.doBet('raise', actualAmount);
+  }
+
+  ui.btnHalf.addEventListener('click', () => doRaise('half'));
+  ui.btnQuarter.addEventListener('click', () => doRaise('quarter'));
+  ui.btnPping.addEventListener('click', () => doRaise('pping'));
+
+  ui.btnCheck.addEventListener('click', () => {
+    if (game) { SoundManager.bet(); game.doBet('call'); }
   });
 
   ui.btnCall.addEventListener('click', () => {
     if (game) { SoundManager.bet(); game.doBet('call'); }
-  });
-
-  ui.btnRaise.addEventListener('click', () => {
-    if (game) { SoundManager.bet(); game.doBet('raise', betAmount); }
   });
 
   ui.btnFold.addEventListener('click', () => {
@@ -932,5 +958,59 @@ function showToast(message, duration = 2800) {
     showScreen('lobby');
     checkSavedSession();
   });
+
+  // ========== 설정 토글 (사운드/진동) ==========
+  function updateSettingsUI() {
+    if (ui.btnToggleSound) {
+      ui.btnToggleSound.textContent = GameSettings.soundEnabled ? '🔊' : '🔇';
+      ui.btnToggleSound.setAttribute('aria-label', GameSettings.soundEnabled ? '사운드 끄기' : '사운드 켜기');
+    }
+    if (ui.btnToggleVibration) {
+      ui.btnToggleVibration.textContent = GameSettings.vibrationEnabled ? '📳' : '📴';
+      ui.btnToggleVibration.setAttribute('aria-label', GameSettings.vibrationEnabled ? '진동 끄기' : '진동 켜기');
+    }
+  }
+  updateSettingsUI();
+
+  if (ui.btnToggleSound) {
+    ui.btnToggleSound.addEventListener('click', () => {
+      GameSettings.soundEnabled = !GameSettings.soundEnabled;
+      updateSettingsUI();
+      showToast(GameSettings.soundEnabled ? '사운드 ON' : '사운드 OFF', 1500);
+    });
+  }
+  if (ui.btnToggleVibration) {
+    ui.btnToggleVibration.addEventListener('click', () => {
+      GameSettings.vibrationEnabled = !GameSettings.vibrationEnabled;
+      updateSettingsUI();
+      showToast(GameSettings.vibrationEnabled ? '진동 ON' : '진동 OFF', 1500);
+    });
+  }
+
+  // ========== 튜토리얼 ==========
+  function showTutorial() {
+    if (ui.tutorialOverlay) ui.tutorialOverlay.style.display = 'flex';
+  }
+  function hideTutorial() {
+    if (ui.tutorialOverlay) ui.tutorialOverlay.style.display = 'none';
+    GameSettings.tutorialSeen = true;
+  }
+
+  // 첫 방문 시 자동 표시
+  if (!GameSettings.tutorialSeen) {
+    showTutorial();
+  }
+
+  if (ui.btnCloseTutorial) {
+    ui.btnCloseTutorial.addEventListener('click', hideTutorial);
+  }
+  if (ui.tutorialOverlay) {
+    ui.tutorialOverlay.addEventListener('click', (e) => {
+      if (e.target === ui.tutorialOverlay) hideTutorial();
+    });
+  }
+  if (ui.btnShowTutorial) {
+    ui.btnShowTutorial.addEventListener('click', showTutorial);
+  }
 
 })();

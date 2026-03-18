@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Jeongsu's Indian Poker</title>
+  <meta name="description" content="P2P 인디언 포커 게임">
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
   <link rel="stylesheet" href="css/style.css">
   <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -40,7 +44,10 @@
         </div>
       </div>
 
-      <p class="version-info">v1.2.0 · Updated 2026-03-18</p>
+      <div class="lobby-footer">
+        <button id="btn-show-tutorial" class="btn btn-small" aria-label="게임 규칙 보기">? 규칙</button>
+      </div>
+      <p class="version-info">v1.3.0</p>
     </div>
   </div>
 
@@ -96,6 +103,12 @@
         </div>
       </div>
 
+      <!-- 설정 버튼 (우상단) -->
+      <div class="game-settings-bar" id="game-settings-bar">
+        <button id="btn-toggle-sound" class="btn-setting" aria-label="사운드 토글">🔊</button>
+        <button id="btn-toggle-vibration" class="btn-setting" aria-label="진동 토글">📳</button>
+      </div>
+
       <!-- 상대방 정보 -->
       <div class="opponent-area">
         <div class="player-info">
@@ -114,6 +127,7 @@
           <div class="pot-display">
             <span>🏆 팟:</span>
             <span id="pot-amount">0</span>
+            <span id="carry-pot-display" class="carry-pot" style="display: none;"></span>
           </div>
           <div class="deck-display">
             <span>🃏 남은 카드:</span>
@@ -158,17 +172,15 @@
           <div class="bet-timer-bar" id="bet-timer-bar"></div>
           <span class="bet-timer-text" id="bet-timer-text">30</span>
         </div>
-        <div class="bet-amount-display">
-          베팅: <span id="bet-amount">1</span>
+        <div class="action-buttons-top">
+          <button id="btn-half" class="btn btn-action btn-raise" aria-label="하프">하프</button>
+          <button id="btn-quarter" class="btn btn-action btn-raise" aria-label="쿼터">쿼터</button>
+          <button id="btn-pping" class="btn btn-action btn-raise" aria-label="삥">삥</button>
         </div>
-        <div class="bet-buttons">
-          <button id="btn-bet-minus" class="btn btn-circle">−</button>
-          <button id="btn-bet-plus" class="btn btn-circle">+</button>
-        </div>
-        <div class="action-buttons">
-          <button id="btn-call" class="btn btn-action btn-call">콜</button>
-          <button id="btn-raise" class="btn btn-action btn-raise">레이즈</button>
-          <button id="btn-fold" class="btn btn-action btn-fold">다이</button>
+        <div class="action-buttons-bottom">
+          <button id="btn-check" class="btn btn-action btn-call" aria-label="체크">체크</button>
+          <button id="btn-call" class="btn btn-action btn-call" aria-label="콜">콜</button>
+          <button id="btn-fold" class="btn btn-action btn-fold" aria-label="다이">다이</button>
         </div>
       </div>
 
@@ -197,6 +209,7 @@
         <div class="game-over-content">
           <h2 id="game-over-title">게임 종료</h2>
           <p id="game-over-message"></p>
+          <div id="game-over-stats" class="game-over-stats" style="display: none;"></div>
           <button id="btn-new-game" class="btn btn-primary">새 게임</button>
         </div>
       </div>
@@ -217,6 +230,51 @@
     </div>
   </div>
 
+  <!-- 튜토리얼 오버레이 -->
+  <div id="tutorial-overlay" class="overlay tutorial-overlay" style="display: none;">
+    <div class="tutorial-content">
+      <h3>게임 규칙</h3>
+      <div class="tutorial-body">
+        <div class="tutorial-section">
+          <h4>기본 규칙</h4>
+          <ul>
+            <li>2인 대전 카드 게임</li>
+            <li>각자 카드 1장을 이마에 올림</li>
+            <li><strong>자기 카드는 볼 수 없고, 상대 카드만 보임</strong></li>
+            <li>카드: 1~10 (각 2장, 총 20장)</li>
+          </ul>
+        </div>
+        <div class="tutorial-section">
+          <h4>베팅</h4>
+          <ul>
+            <li>매 라운드 앤티 1칩 자동 차감</li>
+            <li><strong>체크/콜</strong>: 현재 베팅에 맞추기</li>
+            <li><strong>레이즈</strong>: 베팅 올리기 (라운드당 최대 3회)</li>
+            <li><strong>폴드</strong>: 포기 (베팅한 칩 잃음)</li>
+            <li>30초 타이머 초과 시 자동 콜</li>
+          </ul>
+        </div>
+        <div class="tutorial-section">
+          <h4>승패</h4>
+          <ul>
+            <li>높은 숫자가 이김</li>
+            <li>같으면 무승부 (칩 균등 분배)</li>
+            <li>상대 칩이 0이 되면 최종 승리</li>
+          </ul>
+        </div>
+        <div class="tutorial-section">
+          <h4>특수 규칙</h4>
+          <ul>
+            <li><strong>10카드 폴드 패널티</strong>: 10을 들고 폴드하면 추가 -3칩</li>
+            <li><strong>카드 카운팅</strong>: 나온 카드는 카드 로그에 표시됨 (●●=남음, ●○=1장, ××=소진)</li>
+            <li>덱 소진 시 자동 리셔플</li>
+          </ul>
+        </div>
+      </div>
+      <button id="btn-close-tutorial" class="btn btn-primary">확인</button>
+    </div>
+  </div>
+
   <!-- 연결 끊김 오버레이 -->
   <div id="disconnect-overlay" class="overlay" style="display: none;">
     <div class="overlay-content">
@@ -232,5 +290,10 @@
   <script src="js/connection.js"></script>
   <script src="js/game.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>

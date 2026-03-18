@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#1a1a2e"/>
+  <rect x="56" y="36" width="80" height="120" rx="12" fill="#0f3460" stroke="#ffd700" stroke-width="4"/>
+  <text x="96" y="108" text-anchor="middle" font-size="56" font-weight="bold" fill="white" font-family="sans-serif">?</text>
+  <text x="96" y="178" text-anchor="middle" font-size="18" fill="#ffd700" font-family="sans-serif">IP</text>
+</svg>

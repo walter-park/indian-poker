@@ -657,9 +657,15 @@ body {
   margin-bottom: 1rem;
 }
 
-.action-buttons {
+.action-buttons,
+.action-buttons-top,
+.action-buttons-bottom {
   display: flex;
   gap: 0.5rem;
+}
+
+.action-buttons-top {
+  margin-bottom: 0.5rem;
 }
 
 .btn-action {
@@ -942,15 +948,33 @@ body {
   transition: all 0.3s;
 }
 
+/* 색맹 접근성: 색상 + 패턴 + 테두리 두께로 구분 */
 .card-log-item.used-one {
-  opacity: 0.55;
+  opacity: 0.65;
   border-color: var(--warning);
+  border-width: 2px;
+  border-style: dashed;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-card),
+    var(--bg-card) 3px,
+    rgba(243, 156, 18, 0.15) 3px,
+    rgba(243, 156, 18, 0.15) 6px
+  );
 }
 
 .card-log-item.used-all {
-  opacity: 0.25;
+  opacity: 0.35;
   border-color: var(--danger);
-  text-decoration: line-through;
+  border-width: 2px;
+  border-style: solid;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bg-card),
+    var(--bg-card) 2px,
+    rgba(231, 76, 60, 0.2) 2px,
+    rgba(231, 76, 60, 0.2) 4px
+  );
 }
 
 .card-log-num {
@@ -961,9 +985,23 @@ body {
 }
 
 .card-log-remain {
-  font-size: 0.5rem;
+  font-size: 0.45rem;
   color: var(--text-secondary);
   line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.card-log-item.used-all .card-log-num {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.card-log-item.used-all .card-log-remain {
+  color: var(--danger);
+}
+
+.card-log-item.used-one .card-log-remain {
+  color: var(--warning);
 }
 
 /* Toast */
@@ -1122,4 +1160,168 @@ body {
 
 .history-net.history-draw {
   color: var(--warning);
+}
+
+/* Game Settings Bar (우상단) */
+.game-settings-bar {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.3rem;
+  z-index: 6;
+}
+
+.btn-setting {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(160, 160, 176, 0.2);
+  border-radius: 8px;
+  background: rgba(22, 33, 62, 0.9);
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.btn-setting:active {
+  transform: scale(0.9);
+}
+
+/* Carry Pot Display */
+.carry-pot {
+  font-size: 0.8rem;
+  color: var(--warning);
+  font-weight: 600;
+  margin-left: 0.3rem;
+}
+
+/* Tutorial Overlay */
+.tutorial-overlay {
+  z-index: 150;
+}
+
+.tutorial-content {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 360px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tutorial-content h3 {
+  text-align: center;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  color: var(--gold);
+}
+
+.tutorial-body {
+  margin-bottom: 1.5rem;
+}
+
+.tutorial-section {
+  margin-bottom: 1rem;
+}
+
+.tutorial-section h4 {
+  font-size: 0.9rem;
+  color: var(--accent-light);
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.tutorial-section li {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.2rem 0;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.tutorial-section li::before {
+  content: '·';
+  position: absolute;
+  left: 0.3rem;
+  color: var(--text-secondary);
+}
+
+.tutorial-section li strong {
+  color: var(--text-primary);
+}
+
+.tutorial-content .btn {
+  display: block;
+  margin: 0 auto;
+  min-width: 120px;
+}
+
+/* Game Over Stats */
+.game-over-stats {
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.game-over-stats-section {
+  background: var(--bg-card);
+  border-radius: 10px;
+  padding: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.game-over-stats-section h4 {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* Lobby Footer */
+.lobby-footer {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* History toggle 위치 조정 (설정 바 아래) */
+.history-toggle-btn {
+  top: 3rem;
 }
