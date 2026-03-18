@@ -172,15 +172,26 @@
           <div class="bet-timer-bar" id="bet-timer-bar"></div>
           <span class="bet-timer-text" id="bet-timer-text">30</span>
         </div>
-        <div class="action-buttons-top">
-          <button id="btn-ddadang" class="btn btn-action btn-raise" aria-label="따당">따당</button>
-          <button id="btn-half" class="btn btn-action btn-raise" aria-label="하프">하프</button>
-          <button id="btn-quarter" class="btn btn-action btn-raise" aria-label="쿼터">쿼터</button>
-          <button id="btn-pping" class="btn btn-action btn-raise" aria-label="삥">삥</button>
+        <!-- 레이즈 패널 (토글) -->
+        <div class="raise-panel" id="raise-panel" style="display: none;">
+          <div class="raise-presets">
+            <button class="btn btn-preset" id="btn-preset-half" data-preset="half">½팟</button>
+            <button class="btn btn-preset" id="btn-preset-pot" data-preset="pot">팟</button>
+            <button class="btn btn-preset" id="btn-preset-allin" data-preset="allin">올인</button>
+          </div>
+          <div class="raise-slider-row">
+            <button class="btn btn-pm" id="btn-raise-minus" aria-label="1칩 감소">−</button>
+            <input type="range" class="raise-slider" id="raise-slider" min="1" max="20" value="1">
+            <button class="btn btn-pm" id="btn-raise-plus" aria-label="1칩 증가">+</button>
+          </div>
+          <div class="raise-amount-display" id="raise-amount-display">레이즈: 1칩</div>
+          <button class="btn btn-action btn-raise btn-raise-confirm" id="btn-raise-confirm">레이즈</button>
         </div>
-        <div class="action-buttons-bottom">
+        <!-- 메인 액션 버튼 -->
+        <div class="action-buttons-main">
           <button id="btn-check" class="btn btn-action btn-call" aria-label="체크">체크</button>
           <button id="btn-call" class="btn btn-action btn-call" aria-label="콜">콜</button>
+          <button id="btn-raise-toggle" class="btn btn-action btn-raise" aria-label="레이즈">레이즈</button>
           <button id="btn-fold" class="btn btn-action btn-fold" aria-label="다이">다이</button>
         </div>
       </div>

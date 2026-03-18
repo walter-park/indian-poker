@@ -189,13 +189,19 @@ function showToast(message, duration = 2800) {
     potAmount: $('pot-amount'),
     gameStatus: $('game-status'),
     bettingControls: $('betting-controls'),
-    btnDdadang: $('btn-ddadang'),
-    btnHalf: $('btn-half'),
-    btnQuarter: $('btn-quarter'),
-    btnPping: $('btn-pping'),
     btnCheck: $('btn-check'),
     btnCall: $('btn-call'),
     btnFold: $('btn-fold'),
+    btnRaiseToggle: $('btn-raise-toggle'),
+    raisePanel: $('raise-panel'),
+    raiseSlider: $('raise-slider'),
+    raiseAmountDisplay: $('raise-amount-display'),
+    btnRaiseMinus: $('btn-raise-minus'),
+    btnRaisePlus: $('btn-raise-plus'),
+    btnRaiseConfirm: $('btn-raise-confirm'),
+    btnPresetHalf: $('btn-preset-half'),
+    btnPresetPot: $('btn-preset-pot'),
+    btnPresetAllin: $('btn-preset-allin'),
     // Timer
     betTimer: $('bet-timer'),
     betTimerBar: $('bet-timer-bar'),
@@ -701,6 +707,12 @@ function showToast(message, duration = 2800) {
     const showBetting = state.state === STATE.BETTING && state.isMyTurn;
     if (ui.bettingControls) ui.bettingControls.style.display = showBetting ? 'block' : 'none';
 
+    // 새 턴 시작 시 레이즈 패널 닫기
+    if (showBetting && !wasMyTurn) {
+      if (ui.raisePanel) ui.raisePanel.style.display = 'none';
+      if (ui.btnRaiseToggle) ui.btnRaiseToggle.classList.remove('raise-active');
+    }
+
     // 타이머: 내 턴이 새로 시작되면 가동
     if (showBetting && !wasMyTurn) {
       startBetTimer();
@@ -713,70 +725,47 @@ function showToast(message, duration = 2800) {
 
     if (showBetting) {
       const callDiff = Math.max(0, state.opponentBetTotal - state.myBetTotal);
-      const chipsAfterCall = state.myChips - callDiff;
       const raiseMaxed = state.raiseCount >= state.maxRaises;
+      const chipsAfterCall = state.myChips - callDiff;
+      const canRaise = !raiseMaxed && chipsAfterCall >= 1;
 
-      // 하프/쿼터/삥 금액 계산
-      const halfAmt = Math.max(1, Math.ceil(state.pot / 2));
-      const quarterAmt = Math.max(1, Math.ceil(state.pot / 4));
-      const ppingAmt = 1;
-
-      // 올인 판정 함수: 레이즈 금액이 남은 칩 이상이면 올인
-      function updateRaiseBtn(btn, label, amount) {
-        if (!btn) return;
-        const totalCost = callDiff + amount;
-        const isAllIn = totalCost >= state.myChips;
-        const disabled = raiseMaxed || chipsAfterCall < 1;
-        btn.disabled = disabled;
-        if (disabled) {
-          btn.textContent = label;
-        } else if (isAllIn) {
-          btn.textContent = `올인 (${state.myChips})`;
-        } else {
-          btn.textContent = `${label} (${amount})`;
-        }
-      }
-
-      // 따당: 상대 레이즈 금액만큼 되돌려 레이즈 (callDiff가 0이면 비활성화)
-      if (ui.btnDdadang) {
-        if (callDiff === 0 || raiseMaxed || chipsAfterCall < 1) {
-          ui.btnDdadang.disabled = true;
-          ui.btnDdadang.textContent = '따당';
-        } else {
-          updateRaiseBtn(ui.btnDdadang, '따당', callDiff);
-        }
-      }
-
-      updateRaiseBtn(ui.btnHalf, '하프', halfAmt);
-      updateRaiseBtn(ui.btnQuarter, '쿼터', quarterAmt);
-      updateRaiseBtn(ui.btnPping, '삥', ppingAmt);
-
-      // 체크: 차이 없을 때만 활성화
+      // 체크: 차이 없을 때만
       if (ui.btnCheck) {
         ui.btnCheck.style.display = callDiff === 0 ? '' : 'none';
-        ui.btnCheck.disabled = callDiff > 0;
       }
 
-      // 콜: 차이 있을 때만 활성화
+      // 콜: 차이 있을 때만
       if (ui.btnCall) {
         if (callDiff > 0) {
           ui.btnCall.style.display = '';
-          if (callDiff >= state.myChips) {
-            ui.btnCall.textContent = `올인 (${state.myChips})`;
-          } else {
-            ui.btnCall.textContent = `콜 (${callDiff})`;
-          }
-          ui.btnCall.disabled = false;
+          ui.btnCall.textContent = callDiff >= state.myChips
+            ? `올인 (${state.myChips})`
+            : `콜 (${callDiff})`;
         } else {
           ui.btnCall.style.display = 'none';
         }
       }
+
+      // 레이즈 토글 버튼
+      if (ui.btnRaiseToggle) {
+        ui.btnRaiseToggle.disabled = !canRaise;
+        if (!canRaise && ui.raisePanel) {
+          ui.raisePanel.style.display = 'none';
+          ui.btnRaiseToggle.classList.remove('raise-active');
+        }
+      }
+
+      // 레이즈 패널 슬라이더 범위 갱신
+      if (ui.raisePanel && ui.raisePanel.style.display !== 'none' && canRaise) {
+        updateRaiseSliderRange();
+      }
     } else {
-      if (ui.btnDdadang) ui.btnDdadang.textContent = '따당';
-      if (ui.btnHalf) ui.btnHalf.textContent = '하프';
-      if (ui.btnQuarter) ui.btnQuarter.textContent = '쿼터';
-      if (ui.btnPping) ui.btnPping.textContent = '삥';
       if (ui.btnCheck) ui.btnCheck.textContent = '체크';
+      // 턴이 아닐 때 레이즈 패널 닫기
+      if (ui.raisePanel) {
+        ui.raisePanel.style.display = 'none';
+        if (ui.btnRaiseToggle) ui.btnRaiseToggle.classList.remove('raise-active');
+      }
       if (ui.btnCall) ui.btnCall.textContent = '콜';
     }
   }
@@ -976,33 +965,116 @@ function showToast(message, duration = 2800) {
     ui.gameOver.style.display = 'flex';
   }
 
-  // ========== 베팅 컨트롤 ==========
-  function getRaiseAmount(type) {
-    if (!game) return 1;
-    const pot = game.pot;
-    if (type === 'ddadang') {
-      const callDiff = Math.max(0, game.opponentBetTotal - game.myBetTotal);
-      return Math.max(1, callDiff);
-    }
-    if (type === 'half') return Math.max(1, Math.ceil(pot / 2));
-    if (type === 'quarter') return Math.max(1, Math.ceil(pot / 4));
-    return 1; // 삥
-  }
-
-  function doRaise(type) {
-    if (!game) return;
+  // ========== 레이즈 패널 컨트롤 ==========
+  function getRaiseRange() {
+    if (!game) return { min: 1, max: 1 };
     const callDiff = Math.max(0, game.opponentBetTotal - game.myBetTotal);
-    const amount = getRaiseAmount(type);
-    const totalCost = callDiff + amount;
-    const actualAmount = totalCost >= game.myChips ? Math.max(1, game.myChips - callDiff) : amount;
-    SoundManager.bet();
-    game.doBet('raise', actualAmount);
+    const maxRaise = Math.max(1, game.myChips - callDiff);
+    return { min: 1, max: maxRaise };
   }
 
-  if (ui.btnDdadang) ui.btnDdadang.addEventListener('click', () => doRaise('ddadang'));
-  if (ui.btnHalf) ui.btnHalf.addEventListener('click', () => doRaise('half'));
-  if (ui.btnQuarter) ui.btnQuarter.addEventListener('click', () => doRaise('quarter'));
-  if (ui.btnPping) ui.btnPping.addEventListener('click', () => doRaise('pping'));
+  function updateRaiseSliderRange() {
+    if (!ui.raiseSlider || !game) return;
+    const { min, max } = getRaiseRange();
+    ui.raiseSlider.min = min;
+    ui.raiseSlider.max = max;
+    // 현재 값이 범위 밖이면 보정
+    const val = parseInt(ui.raiseSlider.value, 10);
+    if (val < min) ui.raiseSlider.value = min;
+    if (val > max) ui.raiseSlider.value = max;
+    updateRaiseDisplay();
+    // 프리셋 금액 표시
+    const halfAmt = Math.min(Math.max(1, Math.ceil(game.pot / 2)), max);
+    const potAmt = Math.min(Math.max(1, game.pot), max);
+    if (ui.btnPresetHalf) ui.btnPresetHalf.textContent = `½팟 (${halfAmt})`;
+    if (ui.btnPresetPot) ui.btnPresetPot.textContent = `팟 (${potAmt})`;
+    if (ui.btnPresetAllin) ui.btnPresetAllin.textContent = `올인 (${max})`;
+  }
+
+  function updateRaiseDisplay() {
+    if (!ui.raiseSlider || !ui.raiseAmountDisplay) return;
+    const val = parseInt(ui.raiseSlider.value, 10);
+    const { max } = getRaiseRange();
+    if (val >= max) {
+      ui.raiseAmountDisplay.textContent = `올인: ${max}칩`;
+      if (ui.btnRaiseConfirm) ui.btnRaiseConfirm.textContent = `올인 (${max})`;
+    } else {
+      ui.raiseAmountDisplay.textContent = `레이즈: ${val}칩`;
+      if (ui.btnRaiseConfirm) ui.btnRaiseConfirm.textContent = `레이즈 (${val})`;
+    }
+  }
+
+  // 레이즈 토글
+  if (ui.btnRaiseToggle) ui.btnRaiseToggle.addEventListener('click', () => {
+    if (!ui.raisePanel) return;
+    const isOpen = ui.raisePanel.style.display !== 'none';
+    if (isOpen) {
+      ui.raisePanel.style.display = 'none';
+      ui.btnRaiseToggle.classList.remove('raise-active');
+    } else {
+      ui.raisePanel.style.display = '';
+      ui.btnRaiseToggle.classList.add('raise-active');
+      updateRaiseSliderRange();
+      // 기본값 1칩으로 초기화
+      ui.raiseSlider.value = ui.raiseSlider.min;
+      updateRaiseDisplay();
+    }
+  });
+
+  // 슬라이더
+  if (ui.raiseSlider) ui.raiseSlider.addEventListener('input', updateRaiseDisplay);
+
+  // ± 미세조절
+  if (ui.btnRaiseMinus) ui.btnRaiseMinus.addEventListener('click', () => {
+    if (!ui.raiseSlider) return;
+    const val = parseInt(ui.raiseSlider.value, 10);
+    const min = parseInt(ui.raiseSlider.min, 10);
+    if (val > min) {
+      ui.raiseSlider.value = val - 1;
+      updateRaiseDisplay();
+    }
+  });
+
+  if (ui.btnRaisePlus) ui.btnRaisePlus.addEventListener('click', () => {
+    if (!ui.raiseSlider) return;
+    const val = parseInt(ui.raiseSlider.value, 10);
+    const max = parseInt(ui.raiseSlider.max, 10);
+    if (val < max) {
+      ui.raiseSlider.value = val + 1;
+      updateRaiseDisplay();
+    }
+  });
+
+  // 프리셋 버튼
+  function applyPreset(type) {
+    if (!game || !ui.raiseSlider) return;
+    const { max } = getRaiseRange();
+    let amount;
+    if (type === 'half') {
+      amount = Math.max(1, Math.ceil(game.pot / 2));
+    } else if (type === 'pot') {
+      amount = Math.max(1, game.pot);
+    } else {
+      amount = max; // 올인
+    }
+    ui.raiseSlider.value = Math.min(amount, max);
+    updateRaiseDisplay();
+  }
+
+  if (ui.btnPresetHalf) ui.btnPresetHalf.addEventListener('click', () => applyPreset('half'));
+  if (ui.btnPresetPot) ui.btnPresetPot.addEventListener('click', () => applyPreset('pot'));
+  if (ui.btnPresetAllin) ui.btnPresetAllin.addEventListener('click', () => applyPreset('allin'));
+
+  // 레이즈 확인
+  if (ui.btnRaiseConfirm) ui.btnRaiseConfirm.addEventListener('click', () => {
+    if (!game || !ui.raiseSlider) return;
+    const amount = parseInt(ui.raiseSlider.value, 10);
+    SoundManager.bet();
+    game.doBet('raise', amount);
+    // 패널 닫기
+    if (ui.raisePanel) ui.raisePanel.style.display = 'none';
+    if (ui.btnRaiseToggle) ui.btnRaiseToggle.classList.remove('raise-active');
+  });
 
   if (ui.btnCheck) ui.btnCheck.addEventListener('click', () => {
     if (game) { SoundManager.bet(); game.doBet('call'); }
