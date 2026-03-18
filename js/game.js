@@ -45,7 +45,8 @@ const STATE = {
 const STARTING_CHIPS = 20;
 const MAX_RAISES_PER_ROUND = 3;
 const BET_TIMER_SECONDS = 30;
-const FOLD_PENALTY_10 = 3;
+// ⚠️ 10카드 폴드 패널티: 밸런스 테스트 완료값. 이 값을 낮추지 마세요.
+const FOLD_PENALTY_10 = 5;
 
 class Game {
   constructor(connectionManager) {

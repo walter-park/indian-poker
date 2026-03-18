@@ -183,6 +183,7 @@ function showToast(message, duration = 2800) {
     potAmount: $('pot-amount'),
     gameStatus: $('game-status'),
     bettingControls: $('betting-controls'),
+    btnDdadang: $('btn-ddadang'),
     btnHalf: $('btn-half'),
     btnQuarter: $('btn-quarter'),
     btnPping: $('btn-pping'),
@@ -706,7 +707,6 @@ function showToast(message, duration = 2800) {
         if (!btn) return;
         const totalCost = callDiff + amount;
         const isAllIn = totalCost >= state.myChips;
-        const actualAmount = isAllIn ? state.myChips - callDiff : amount;
         const disabled = raiseMaxed || chipsAfterCall < 1;
         btn.disabled = disabled;
         if (disabled) {
@@ -715,6 +715,16 @@ function showToast(message, duration = 2800) {
           btn.textContent = `올인 (${state.myChips})`;
         } else {
           btn.textContent = `${label} (${amount})`;
+        }
+      }
+
+      // 따당: 상대 레이즈 금액만큼 되돌려 레이즈 (callDiff가 0이면 비활성화)
+      if (ui.btnDdadang) {
+        if (callDiff === 0 || raiseMaxed || chipsAfterCall < 1) {
+          ui.btnDdadang.disabled = true;
+          ui.btnDdadang.textContent = '따당';
+        } else {
+          updateRaiseBtn(ui.btnDdadang, '따당', callDiff);
         }
       }
 
@@ -743,6 +753,7 @@ function showToast(message, duration = 2800) {
         }
       }
     } else {
+      if (ui.btnDdadang) ui.btnDdadang.textContent = '따당';
       if (ui.btnHalf) ui.btnHalf.textContent = '하프';
       if (ui.btnQuarter) ui.btnQuarter.textContent = '쿼터';
       if (ui.btnPping) ui.btnPping.textContent = '삥';
@@ -913,6 +924,10 @@ function showToast(message, duration = 2800) {
   function getRaiseAmount(type) {
     if (!game) return 1;
     const pot = game.pot;
+    if (type === 'ddadang') {
+      const callDiff = Math.max(0, game.opponentBetTotal - game.myBetTotal);
+      return Math.max(1, callDiff);
+    }
     if (type === 'half') return Math.max(1, Math.ceil(pot / 2));
     if (type === 'quarter') return Math.max(1, Math.ceil(pot / 4));
     return 1; // 삥
@@ -928,6 +943,7 @@ function showToast(message, duration = 2800) {
     game.doBet('raise', actualAmount);
   }
 
+  if (ui.btnDdadang) ui.btnDdadang.addEventListener('click', () => doRaise('ddadang'));
   if (ui.btnHalf) ui.btnHalf.addEventListener('click', () => doRaise('half'));
   if (ui.btnQuarter) ui.btnQuarter.addEventListener('click', () => doRaise('quarter'));
   if (ui.btnPping) ui.btnPping.addEventListener('click', () => doRaise('pping'));
