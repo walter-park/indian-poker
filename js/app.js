@@ -464,13 +464,15 @@
     ui.resultMyCard.textContent = result.myCard;
     ui.resultOpponentCard.textContent = result.opponentCard;
 
+    const penaltyText = result.penalty > 0 ? `\n⚠️ 10 카드 폴드 패널티: ${result.penalty}칩 추가!` : '';
+
     if (result.winner === 'you') {
       ui.resultTitle.textContent = '🎉 승리!';
-      ui.resultMessage.textContent = `+${result.potWon} 칩을 획득했습니다`;
+      ui.resultMessage.textContent = `+${result.netGain} 칩 획득${penaltyText}`;
       ui.resultMessage.style.color = '#2ecc71';
     } else if (result.winner === 'opponent') {
       ui.resultTitle.textContent = '😢 패배';
-      ui.resultMessage.textContent = `${result.potWon} 칩을 잃었습니다`;
+      ui.resultMessage.textContent = `-${Math.abs(result.netGain)} 칩 손실${penaltyText}`;
       ui.resultMessage.style.color = '#e74c3c';
     } else {
       ui.resultTitle.textContent = '🤝 무승부';

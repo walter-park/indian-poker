@@ -243,7 +243,8 @@ class Game {
             myCard: data.yourCard,
             opponentCard: data.opponentCard,
             winner: data.winner,  // 'you', 'opponent', 'draw'
-            potWon: data.potWon,
+            netGain: data.netGain,
+            penalty: data.penalty || 0,
           });
         }
         break;
@@ -504,7 +505,25 @@ class Game {
 
     if (winnerByFold) {
       winner = winnerByFold;
+
+      // 10 카드 패널티: 10을 들고 폴드하면 추가 5칩 페널티
+      const folderCard = winnerByFold === 'guest' ? hostCard : guestCard;
+      if (folderCard === 10) {
+        this._foldPenalty = Math.min(5, winnerByFold === 'guest' ? this.myChips : this.opponentChips);
+        if (winnerByFold === 'guest') {
+          // Host가 폴드 → Guest가 승리, Host가 패널티
+          this.myChips -= this._foldPenalty;
+          this.opponentChips += this._foldPenalty;
+        } else {
+          // Guest가 폴드 → Host가 승리, Guest가 패널티
+          this.opponentChips -= this._foldPenalty;
+          this.myChips += this._foldPenalty;
+        }
+      } else {
+        this._foldPenalty = 0;
+      }
     } else {
+      this._foldPenalty = 0;
       // 카드 비교
       if (hostCard > guestCard) winner = 'host';
       else if (guestCard > hostCard) winner = 'guest';
@@ -522,12 +541,17 @@ class Game {
       this.opponentChips += Math.ceil(this.pot / 2);
     }
 
+    // 순수익 계산 (총 팟 - 본인 베팅액)
+    const hostNetGain = this.pot - this.myBetTotal;
+    const guestNetGain = this.pot - this.opponentBetTotal;
+
     // Host에게 결과 표시
     const hostResult = {
       myCard: hostCard,
       opponentCard: guestCard,
       winner: winner === 'host' ? 'you' : winner === 'guest' ? 'opponent' : 'draw',
-      potWon: this.pot,
+      netGain: hostNetGain,
+      penalty: this._foldPenalty,
     };
     this.myCard = hostCard;
     this.state = STATE.ROUND_END;
@@ -541,7 +565,8 @@ class Game {
       yourCard: guestCard,
       opponentCard: hostCard,
       winner: winner === 'guest' ? 'you' : winner === 'host' ? 'opponent' : 'draw',
-      potWon: this.pot,
+      netGain: guestNetGain,
+      penalty: this._foldPenalty,
       yourChips: this.opponentChips,
       opponentChips: this.myChips,
     });
