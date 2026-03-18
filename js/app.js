@@ -265,7 +265,8 @@ function showToast(message, duration = 2800) {
 
       if (betTimerSeconds <= 0) {
         clearBetTimer();
-        if (game) {
+        // race condition 방지: 게임이 존재하고 내 턴이며 베팅 상태일 때만 자동 콜
+        if (game && game.isMyTurn && game.state === STATE.BETTING) {
           SoundManager.timeout();
           showToast('⏰ 시간 초과 - 자동 콜');
           game.doBet('call');
@@ -477,7 +478,10 @@ function showToast(message, duration = 2800) {
       { fps: 10, qrbox: { width: 200, height: 200 } },
       (decodedText) => { stopQrScanner(); connectToHost(decodedText); },
       () => {}
-    ).catch((err) => { console.warn('카메라 시작 실패:', err); });
+    ).catch((err) => {
+      console.warn('카메라 시작 실패:', err);
+      showToast('카메라를 사용할 수 없습니다. ID를 직접 입력해주세요.');
+    });
   }
 
   async function stopQrScanner() {
@@ -858,11 +862,25 @@ function showToast(message, duration = 2800) {
 
       const netStr = r.netProfit >= 0 ? `+${r.netProfit}` : `${r.netProfit}`;
 
-      row.innerHTML =
-        `<span class="history-round">#${r.round}</span>` +
-        `<span class="history-badge ${colorClass}">${icon}</span>` +
-        `<span class="history-cards">${r.myCard} vs ${r.opponentCard}</span>` +
-        `<span class="history-net ${colorClass}">${netStr}</span>`;
+      const roundSpan = document.createElement('span');
+      roundSpan.className = 'history-round';
+      roundSpan.textContent = '#' + r.round;
+      row.appendChild(roundSpan);
+
+      const badgeSpan = document.createElement('span');
+      badgeSpan.className = 'history-badge ' + colorClass;
+      badgeSpan.textContent = icon;
+      row.appendChild(badgeSpan);
+
+      const cardsSpan = document.createElement('span');
+      cardsSpan.className = 'history-cards';
+      cardsSpan.textContent = r.myCard + ' vs ' + r.opponentCard;
+      row.appendChild(cardsSpan);
+
+      const netSpan = document.createElement('span');
+      netSpan.className = 'history-net ' + colorClass;
+      netSpan.textContent = netStr;
+      row.appendChild(netSpan);
 
       ui.historyList.appendChild(row);
     }
@@ -906,23 +924,46 @@ function showToast(message, duration = 2800) {
       const losses = roundHistory.filter(r => r.winner === 'opponent').length;
       const draws = roundHistory.filter(r => r.winner === 'draw').length;
 
-      ui.gameOverStats.innerHTML =
-        '<div class="game-over-stats-section">' +
-        '<h4>이번 게임</h4>' +
-        '<div class="stats-grid">' +
-        '<div class="stat-item"><span class="stat-label">라운드</span><span class="stat-value">' + roundHistory.length + '</span></div>' +
-        '<div class="stat-item"><span class="stat-label">승/패/무</span><span class="stat-value">' + wins + '/' + losses + '/' + draws + '</span></div>' +
-        '</div>' +
-        '</div>' +
-        '<div class="game-over-stats-section">' +
-        '<h4>누적 전적</h4>' +
-        '<div class="stats-grid">' +
-        '<div class="stat-item"><span class="stat-label">총 게임</span><span class="stat-value">' + stats.gamesPlayed + '</span></div>' +
-        '<div class="stat-item"><span class="stat-label">승률</span><span class="stat-value">' + (stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0) + '%</span></div>' +
-        '<div class="stat-item"><span class="stat-label">연승</span><span class="stat-value">' + stats.currentStreak + '</span></div>' +
-        '<div class="stat-item"><span class="stat-label">최고 연승</span><span class="stat-value">' + stats.bestStreak + '</span></div>' +
-        '</div>' +
-        '</div>';
+      ui.gameOverStats.textContent = '';
+
+      function createStatItem(label, value) {
+        const item = document.createElement('div');
+        item.className = 'stat-item';
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'stat-label';
+        labelSpan.textContent = label;
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'stat-value';
+        valueSpan.textContent = value;
+        item.appendChild(labelSpan);
+        item.appendChild(valueSpan);
+        return item;
+      }
+
+      function createStatsSection(title, items) {
+        const section = document.createElement('div');
+        section.className = 'game-over-stats-section';
+        const h4 = document.createElement('h4');
+        h4.textContent = title;
+        section.appendChild(h4);
+        const grid = document.createElement('div');
+        grid.className = 'stats-grid';
+        items.forEach(([label, value]) => grid.appendChild(createStatItem(label, value)));
+        section.appendChild(grid);
+        return section;
+      }
+
+      const winRate = stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
+      ui.gameOverStats.appendChild(createStatsSection('이번 게임', [
+        ['라운드', roundHistory.length],
+        ['승/패/무', wins + '/' + losses + '/' + draws],
+      ]));
+      ui.gameOverStats.appendChild(createStatsSection('누적 전적', [
+        ['총 게임', stats.gamesPlayed],
+        ['승률', winRate + '%'],
+        ['연승', stats.currentStreak],
+        ['최고 연승', stats.bestStreak],
+      ]));
       ui.gameOverStats.style.display = 'block';
     }
 
@@ -1003,6 +1044,8 @@ function showToast(message, duration = 2800) {
   // ========== 연결 끊김 ==========
   function handleDisconnect() {
     clearBetTimer();
+    // 게임 상태 정리 (백그라운드 타이머 방지)
+    game = null;
     if (ui.disconnectOverlay) ui.disconnectOverlay.style.display = 'flex';
   }
 

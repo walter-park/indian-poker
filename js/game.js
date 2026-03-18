@@ -118,6 +118,11 @@ class Game {
       opponentName: this.opponentName,
       isHost: this.conn.isHost,
       timestamp: Date.now(),
+      // 덱/카드로그/이월팟 상태 보존
+      deck: this._deck,
+      playedCards: this.playedCards,
+      carryPot: this._carryPot,
+      lastRoundLoser: this._lastRoundLoser,
     };
     try {
       localStorage.setItem(Game.STORAGE_KEY, JSON.stringify(session));
@@ -158,6 +163,20 @@ class Game {
       this.myChips = savedSession.myChips;
       this.opponentChips = savedSession.opponentChips;
       this.roundNumber = savedSession.roundNumber;
+      // 덱/카드로그/이월팟 복원
+      if (savedSession.deck && savedSession.deck.length > 0) {
+        this._deck = savedSession.deck;
+      }
+      if (savedSession.playedCards) {
+        this.playedCards = savedSession.playedCards;
+      }
+      if (savedSession.carryPot) {
+        this._carryPot = savedSession.carryPot;
+      }
+      if (savedSession.lastRoundLoser) {
+        this._lastRoundLoser = savedSession.lastRoundLoser;
+      }
+      this.remainingCards = this._deck.length;
 
       setTimeout(() => {
         this.conn.send({
@@ -165,6 +184,8 @@ class Game {
           yourChips: this.opponentChips,
           opponentChips: this.myChips,
           roundNumber: this.roundNumber,
+          playedCards: this.playedCards,
+          remainingCards: this.remainingCards,
         });
         this._updateUI();
         setTimeout(() => this._startNewRound(), 1000);
@@ -289,6 +310,8 @@ class Game {
         this.myChips = data.yourChips;
         this.opponentChips = data.opponentChips;
         this.roundNumber = data.roundNumber;
+        if (data.playedCards) this.playedCards = data.playedCards;
+        if (data.remainingCards !== undefined) this.remainingCards = data.remainingCards;
         this._updateUI();
         break;
 
@@ -308,11 +331,21 @@ class Game {
     for (let i = 1; i <= 10; i++) {
       this._deck.push(i, i);
     }
+    // Fisher-Yates shuffle with crypto-safe random
     for (let i = this._deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = this._cryptoRandInt(i + 1);
       [this._deck[i], this._deck[j]] = [this._deck[j], this._deck[i]];
     }
     this._deckSize = this._deck.length;
+  }
+
+  _cryptoRandInt(max) {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return arr[0] % max;
+    }
+    return Math.floor(Math.random() * max);
   }
 
   _drawCard() {
@@ -325,6 +358,8 @@ class Game {
     if (!this.conn.isHost) return;
     if (this._isGameOver) return;
     if (this.myChips <= 0 || this.opponentChips <= 0) return;
+    // 이미 딜링/베팅 중이면 중복 라운드 방지
+    if (this.state === STATE.DEALING || this.state === STATE.BETTING) return;
 
     // 덱 부족 시 리셔플
     if (this._deck.length < 2) {
@@ -429,12 +464,14 @@ class Game {
         }
       }
 
+      // 초과분 환급 포함 최신 상태를 Guest에 동기화
+      this._syncState(fromHost);
+
       const betDiff = fromHost
         ? (this.opponentBetTotal - this.myBetTotal)
         : (this.myBetTotal - this.opponentBetTotal);
       if (betDiff === 0 && this._betActionsCount === 0) {
         this._betActionsCount++;
-        this._syncState(fromHost);
         this.isMyTurn = !fromHost;
         this.conn.send({
           type: MSG.BET_TURN,
@@ -450,7 +487,14 @@ class Game {
     }
 
     if (action === 'raise') {
-      if (!Number.isFinite(amount) || amount <= 0) return;
+      if (!Number.isFinite(amount) || amount <= 0) {
+        this.isMyTurn = fromHost;
+        if (!fromHost) {
+          this.conn.send({ type: MSG.BET_TURN, isYourTurn: true, raiseCount: this._raiseCount });
+        }
+        this._updateUI();
+        return;
+      }
 
       if (fromHost) {
         const callDiff = this.opponentBetTotal - this.myBetTotal;
@@ -510,7 +554,9 @@ class Game {
 
       const folderCard = winnerByFold === 'guest' ? hostCard : guestCard;
       if (folderCard === 10) {
-        foldPenalty = Math.min(FOLD_PENALTY_10, winnerByFold === 'guest' ? this.myChips : this.opponentChips);
+        // 폴드한 쪽의 현재 칩(팟 반환 전)으로 패널티 상한, 음수 방지
+        const folderChips = winnerByFold === 'guest' ? this.myChips : this.opponentChips;
+        foldPenalty = Math.min(FOLD_PENALTY_10, Math.max(0, folderChips));
         if (winnerByFold === 'guest') {
           this.myChips -= foldPenalty;
           this.opponentChips += foldPenalty;
@@ -643,7 +689,11 @@ class Game {
 
   _handleOpponentBet(data) {
     if (this.conn.isHost) {
-      this._processBet(data.action, data.amount, false);
+      // Guest 입력 검증: 허용된 액션만 처리
+      const action = data.action;
+      if (action !== 'call' && action !== 'fold' && action !== 'raise') return;
+      const amount = Number(data.amount) || 0;
+      this._processBet(action, amount, false);
     }
   }
 
@@ -658,6 +708,8 @@ class Game {
         this._nextRoundRequested = false;
         this._startNewRound();
       }, 500);
+    } else {
+      this._nextRoundRequested = false;
     }
   }
 
@@ -671,6 +723,8 @@ class Game {
         this._newGameRequested = false;
         this._startNewRound();
       }, 1000);
+    } else {
+      this._newGameRequested = false;
     }
   }
 

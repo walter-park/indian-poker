@@ -21,9 +21,18 @@ class ConnectionManager {
    * Host: Peer 생성 및 QR 코드용 ID 반환
    * @param {string} [fixedId] - 재연결 시 사용할 고정 ID
    */
+  _generateRoomId() {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint8Array(4);
+      crypto.getRandomValues(arr);
+      return 'ip-' + Array.from(arr, b => b.toString(36).padStart(2, '0')).join('').substring(0, 6);
+    }
+    return 'ip-' + Math.random().toString(36).substring(2, 8);
+  }
+
   createHost(fixedId) {
     return new Promise((resolve, reject) => {
-      const shortId = fixedId || 'ip-' + Math.random().toString(36).substring(2, 8);
+      const shortId = fixedId || this._generateRoomId();
 
       this.peer = new Peer(shortId, {
         debug: 1,
@@ -60,7 +69,12 @@ class ConnectionManager {
         if (err.type === 'unavailable-id' && (this._createRetries || 0) < 3) {
           this._createRetries = (this._createRetries || 0) + 1;
           this.peer.destroy();
-          this.createHost().then(resolve).catch(reject);
+          // fixedId가 아닌 경우에만 새 ID로 재시도 (fixedId는 재사용 불가이므로 에러)
+          if (fixedId) {
+            reject(err);
+          } else {
+            this.createHost().then(resolve).catch(reject);
+          }
         } else {
           reject(err);
         }
