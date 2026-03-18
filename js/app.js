@@ -152,6 +152,8 @@ function showToast(message, duration = 2800) {
     roomInfoOverlay: $('room-info-overlay'),
     roomInfoExpandedQr: $('room-info-expanded-qr'),
     roomInfoExpandedId: $('room-info-expanded-id'),
+    roomInfoCopyBtn: $('room-info-copy-btn'),
+    roomInfoExpandedCopyBtn: $('room-info-expanded-copy-btn'),
     btnCloseRoomInfo: $('btn-close-room-info'),
   };
 
@@ -471,7 +473,24 @@ function showToast(message, duration = 2800) {
     ui.roomInfoBadge.style.display = 'flex';
   }
 
-  ui.roomInfoBadge.addEventListener('click', () => { ui.roomInfoOverlay.style.display = 'flex'; });
+  function copyRoomId(btn) {
+    const roomId = ui.roomInfoId.textContent;
+    if (!roomId || roomId === '-') return;
+    navigator.clipboard.writeText(roomId).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = '✅';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
+
+  ui.roomInfoBadge.addEventListener('click', (e) => {
+    if (e.target.closest('.room-info-copy-btn') || e.target.closest('.room-info-id')) return;
+    ui.roomInfoOverlay.style.display = 'flex';
+  });
+  ui.roomInfoId.addEventListener('click', (e) => { e.stopPropagation(); copyRoomId(ui.roomInfoCopyBtn); });
+  ui.roomInfoCopyBtn.addEventListener('click', (e) => { e.stopPropagation(); copyRoomId(ui.roomInfoCopyBtn); });
+  ui.roomInfoExpandedId.addEventListener('click', () => { copyRoomId(ui.roomInfoExpandedCopyBtn); });
+  ui.roomInfoExpandedCopyBtn.addEventListener('click', () => { copyRoomId(ui.roomInfoExpandedCopyBtn); });
   ui.btnCloseRoomInfo.addEventListener('click', () => { ui.roomInfoOverlay.style.display = 'none'; });
   ui.roomInfoOverlay.addEventListener('click', (e) => {
     if (e.target === ui.roomInfoOverlay) ui.roomInfoOverlay.style.display = 'none';
