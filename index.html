@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>인디언 포커</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- QR Code Generator -->
+  <script src="https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <!-- QR Scanner -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <!-- 로비 화면 -->
+  <div id="screen-lobby" class="screen active">
+    <div class="lobby-container">
+      <h1 class="title">🃏 인디언 포커</h1>
+      <p class="subtitle">P2P 오프라인 대전</p>
+
+      <div class="nickname-section">
+        <input type="text" id="nickname-input" placeholder="닉네임 입력" maxlength="8">
+      </div>
+
+      <div class="lobby-buttons">
+        <button id="btn-create-room" class="btn btn-primary">방 만들기</button>
+        <button id="btn-join-room" class="btn btn-secondary">참가하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 방 생성 (Host) - QR 코드 표시 -->
+  <div id="screen-host-waiting" class="screen">
+    <div class="waiting-container">
+      <h2>방 생성됨</h2>
+      <p class="peer-id-display">ID: <span id="host-peer-id">-</span></p>
+      <div id="qr-code-container"></div>
+      <p class="waiting-text">상대방이 QR 코드를 스캔하면 게임이 시작됩니다</p>
+      <div class="connection-status" id="host-status">연결 대기 중...</div>
+      <button id="btn-back-host" class="btn btn-small">뒤로가기</button>
+    </div>
+  </div>
+
+  <!-- 참가 (Guest) - QR 스캔 -->
+  <div id="screen-guest-join" class="screen">
+    <div class="join-container">
+      <h2>방 참가</h2>
+
+      <div id="qr-scanner-section">
+        <div id="qr-reader"></div>
+        <p class="scan-hint">QR 코드를 스캔하세요</p>
+      </div>
+
+      <div class="divider"><span>또는</span></div>
+
+      <div class="manual-join">
+        <input type="text" id="manual-peer-id" placeholder="방 ID 직접 입력">
+        <button id="btn-manual-connect" class="btn btn-primary">연결</button>
+      </div>
+
+      <div class="connection-status" id="guest-status"></div>
+      <button id="btn-back-guest" class="btn btn-small">뒤로가기</button>
+    </div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="screen-game" class="screen">
+    <div class="game-container">
+      <!-- 상대방 정보 -->
+      <div class="opponent-area">
+        <div class="player-info">
+          <span class="player-name" id="opponent-name">상대방</span>
+          <span class="player-chips" id="opponent-chips">💰 10</span>
+        </div>
+        <div class="card-slot opponent-card" id="opponent-card">
+          <span class="card-value" id="opponent-card-value">?</span>
+        </div>
+        <p class="card-hint">상대방의 이마 위 카드</p>
+      </div>
+
+      <!-- 게임 정보 -->
+      <div class="game-info">
+        <div class="pot-display">
+          <span>🏆 팟:</span>
+          <span id="pot-amount">0</span>
+        </div>
+        <div class="game-status" id="game-status">게임 준비 중...</div>
+      </div>
+
+      <!-- 내 영역 -->
+      <div class="my-area">
+        <div class="card-slot my-card" id="my-card">
+          <span class="card-value">?</span>
+        </div>
+        <p class="card-hint">내 카드 (나는 볼 수 없음)</p>
+        <div class="player-info">
+          <span class="player-name" id="my-name">나</span>
+          <span class="player-chips" id="my-chips">💰 10</span>
+        </div>
+      </div>
+
+      <!-- 베팅 컨트롤 -->
+      <div class="betting-controls" id="betting-controls" style="display: none;">
+        <div class="bet-amount-display">
+          베팅: <span id="bet-amount">1</span>
+        </div>
+        <div class="bet-buttons">
+          <button id="btn-bet-minus" class="btn btn-circle">−</button>
+          <button id="btn-bet-plus" class="btn btn-circle">+</button>
+        </div>
+        <div class="action-buttons">
+          <button id="btn-call" class="btn btn-action btn-call">콜</button>
+          <button id="btn-raise" class="btn btn-action btn-raise">레이즈</button>
+          <button id="btn-fold" class="btn btn-action btn-fold">다이</button>
+        </div>
+      </div>
+
+      <!-- 라운드 결과 -->
+      <div class="round-result" id="round-result" style="display: none;">
+        <div class="result-content">
+          <h3 id="result-title">결과</h3>
+          <div class="result-cards">
+            <div class="result-card-item">
+              <span id="result-my-name">나</span>
+              <div class="result-card" id="result-my-card">?</div>
+            </div>
+            <span class="vs">VS</span>
+            <div class="result-card-item">
+              <span id="result-opponent-name">상대</span>
+              <div class="result-card" id="result-opponent-card">?</div>
+            </div>
+          </div>
+          <p id="result-message"></p>
+          <button id="btn-next-round" class="btn btn-primary">다음 라운드</button>
+        </div>
+      </div>
+
+      <!-- 게임 오버 -->
+      <div class="game-over-overlay" id="game-over" style="display: none;">
+        <div class="game-over-content">
+          <h2 id="game-over-title">게임 종료</h2>
+          <p id="game-over-message"></p>
+          <button id="btn-new-game" class="btn btn-primary">새 게임</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 연결 끊김 오버레이 -->
+  <div id="disconnect-overlay" class="overlay" style="display: none;">
+    <div class="overlay-content">
+      <h3>연결 끊김</h3>
+      <p>상대방과의 연결이 끊어졌습니다.</p>
+      <button id="btn-back-lobby" class="btn btn-primary">로비로 돌아가기</button>
+    </div>
+  </div>
+
+  <script src="js/connection.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
